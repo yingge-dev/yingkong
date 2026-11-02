@@ -8,9 +8,10 @@
 
 ## 原型
 
-- 在线体验：[https://yingge-dev.github.io/yingkong/](https://yingge-dev.github.io/yingkong/)（部署后生效）
+- 在线体验：[https://yingge-dev.github.io/yingkong/](https://yingge-dev.github.io/yingkong/)（已上线）
 - 本地打开：直接双击 `index.html`，或起一个静态服务器
-- 手机访问体验最佳，支持添加到主屏幕
+- 手机访问体验最佳，建议在浏览器里「添加到主屏幕」全屏使用
+- 支持 `#monitor` / `#records` / `#tune` / `#apps` / `#settings` 直达对应页面
 
 原型包含 5 个页面：
 
