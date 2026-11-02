@@ -1,11 +1,13 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,9 +35,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +55,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlin.math.max
 
 private val Ink = Color(0xFF1D1D1F)
 private val Muted = Color(0xFF86868B)
@@ -58,6 +67,12 @@ private val Hairline = Color(0x14606067)
 @Composable
 fun RecordScreen(deviceName: String) {
     val context = LocalContext.current
+    var detail by remember { mutableStateOf<RecSession?>(null) }
+    BackHandler(enabled = detail != null) { detail = null }
+    if (detail != null) {
+        SessionDetail(detail!!) { detail = null }
+        return
+    }
     val recording = RecorderStore.recording.value
     val targetName = RecorderStore.targetName.value
     val targetPkg = RecorderStore.targetPkg.value
@@ -226,7 +241,7 @@ fun RecordScreen(deviceName: String) {
             }
         } else {
             sessions.take(12).forEach { session ->
-                SessionCard(session)
+                SessionCard(session) { detail = session }
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -245,12 +260,13 @@ private fun LiveStat(label: String, value: String, unit: String, modifier: Modif
 }
 
 @Composable
-private fun SessionCard(session: RecSession) {
+private fun SessionCard(session: RecSession, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(Color.White.copy(alpha = 0.92f))
+            .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -325,8 +341,237 @@ fun PlaceholderScreen(title: String, deviceName: String) {
     }
 }
 
+@Composable
+private fun SessionDetail(session: RecSession, onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = 2.dp, bottom = 32.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.8f))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("‹", fontSize = 24.sp, color = Ink)
+            }
+            Spacer(Modifier.width(9.dp))
+            Text("场次详情", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+            Spacer(Modifier.weight(1f))
+            Text(formatDuration(session.durationMs), fontSize = 9.sp, color = Tertiary)
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(session.appName, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.5).sp)
+        Spacer(Modifier.height(3.dp))
+        Text(
+            "${session.pkg} · ${SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(session.start))} · ${session.samples} 个样本",
+            fontSize = 8.5.sp,
+            color = Tertiary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(13.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.White.copy(alpha = 0.92f))
+                .padding(14.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailStat("平均", "%.1f".format(session.fpsAvg), "fps", Modifier.weight(1f))
+                DetailStat("1% Low", "%.1f".format(session.fpsLow), "fps", Modifier.weight(1f))
+                DetailStat("Jank", "%.1f".format(session.jankAvg), "%", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailStat("最低", "%.1f".format(session.fpsMin), "fps", Modifier.weight(1f))
+                DetailStat("最高", "%.1f".format(session.fpsMax), "fps", Modifier.weight(1f))
+                DetailStat("功耗", "%.2f".format(session.powerAvg), "W", Modifier.weight(1f))
+                DetailStat("温度", "%.1f".format(session.tempMax), "°C", Modifier.weight(1f))
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.White.copy(alpha = 0.92f))
+                .padding(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("帧率曲线", fontSize = 10.5.sp, color = Muted)
+                Spacer(Modifier.weight(1f))
+                Text("逐秒样本", fontSize = 8.sp, color = Tertiary)
+            }
+            Spacer(Modifier.height(8.dp))
+            if (session.points.size < 2) {
+                Text(
+                    "这一场没有保存逐秒样本。新记录会保存，最多 1200 个点。",
+                    fontSize = 8.5.sp,
+                    color = Tertiary,
+                    modifier = Modifier.padding(vertical = 24.dp)
+                )
+            } else {
+                FpsChart(points = session.points, modifier = Modifier.fillMaxWidth().height(170.dp))
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("0s", fontSize = 7.5.sp, color = Tertiary)
+                    Spacer(Modifier.weight(1f))
+                    Text("浅色 = 前 3 秒预热", fontSize = 7.5.sp, color = Tertiary)
+                    Spacer(Modifier.weight(1f))
+                    Text(formatDuration(session.durationMs), fontSize = 7.5.sp, color = Tertiary)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.92f))
+                    .padding(12.dp)
+            ) {
+                Text("温度", fontSize = 8.sp, color = Tertiary)
+                Text("%.1f°C".format(session.tempMax), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                if (session.points.size >= 2) {
+                    MiniLine(
+                        values = session.points.map { it.temp },
+                        color = Color(0xFFFF6900),
+                        modifier = Modifier.fillMaxWidth().height(40.dp)
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.92f))
+                    .padding(12.dp)
+            ) {
+                Text("功耗", fontSize = 8.sp, color = Tertiary)
+                Text("%.2fW".format(session.powerAvg), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                if (session.points.size >= 2) {
+                    MiniLine(
+                        values = session.points.map { it.power },
+                        color = Color(0xFF0A84FF),
+                        modifier = Modifier.fillMaxWidth().height(40.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("A/B 对比 · 下一版", fontSize = 10.sp, color = Tertiary)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "预热 3 秒不计入汇总；原始样本保留在曲线里。所有数值来自真机采样。",
+            fontSize = 8.sp,
+            color = Tertiary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun DetailStat(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(label, fontSize = 7.5.sp, color = Tertiary)
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+        Text(unit, fontSize = 7.sp, color = Muted)
+    }
+}
+
+@Composable
+private fun FpsChart(points: List<RecSample>, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        if (points.size < 2) return@Canvas
+        val t0 = points.first().t
+        val span = (points.last().t - t0).coerceAtLeast(1L)
+        val maxFps = max(60f, points.maxOf { it.fps })
+        val w = size.width
+        val h = size.height
+        val grid = Color(0x14606067)
+        for (i in 0..3) {
+            val y = h * i / 3f
+            drawLine(grid, Offset(0f, y), Offset(w, y), 1f)
+        }
+        val warmX = (((t0 + 3000L) - t0).toFloat() / span * w).coerceIn(0f, w)
+        drawRect(Color(0x12FF6900), topLeft = Offset.Zero, size = Size(warmX, h))
+
+        val line = Path()
+        points.forEachIndexed { index, p ->
+            val x = ((p.t - t0).toFloat() / span * w).coerceIn(0f, w)
+            val y = h - (p.fps / maxFps).coerceIn(0f, 1f) * h
+            if (index == 0) line.moveTo(x, y) else line.lineTo(x, y)
+        }
+        val area = Path().apply {
+            addPath(line)
+            lineTo(w, h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(area, Brush.verticalGradient(listOf(Color(0x33FF6900), Color.Transparent)))
+        drawPath(
+            line,
+            Color(0xFFFF6900),
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        points.forEach { p ->
+            if (p.jank > 5f) {
+                val x = ((p.t - t0).toFloat() / span * w).coerceIn(0f, w)
+                val y = h - (p.fps / maxFps).coerceIn(0f, 1f) * h
+                drawCircle(Color(0xFFFF3B30), radius = 2.2.dp.toPx(), center = Offset(x, y))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniLine(values: List<Float>, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        if (values.size < 2) return@Canvas
+        val lo = values.minOrNull() ?: 0f
+        val hi = values.maxOrNull() ?: 1f
+        val range = (hi - lo).takeIf { it > 0.01f } ?: 1f
+        val line = Path()
+        values.forEachIndexed { index, value ->
+            val x = size.width * index / (values.size - 1f)
+            val y = size.height - (value - lo) / range * (size.height - 2.dp.toPx()) - 1.dp.toPx()
+            if (index == 0) line.moveTo(x, y) else line.lineTo(x, y)
+        }
+        drawPath(
+            line,
+            color,
+            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
+
 private fun formatDuration(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(total / 60, total % 60)
 }
+
 

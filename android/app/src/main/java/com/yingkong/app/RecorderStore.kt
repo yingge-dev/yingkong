@@ -1,4 +1,4 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
@@ -29,7 +29,8 @@ data class RecSession(
     val jankAvg: Float,
     val powerAvg: Float,
     val tempMax: Float,
-    val samples: Int
+    val samples: Int,
+    val points: List<RecSample> = emptyList()
 )
 
 object RecorderStore {
@@ -44,7 +45,8 @@ object RecorderStore {
 
     private const val PREFS = "yingkong"
     private const val KEY = "sessions"
-    private const val MAX_SESSIONS = 50
+    private const val MAX_SESSIONS = 20
+    private const val MAX_POINTS = 1200
 
     fun begin() {
         recording.value = true
@@ -79,7 +81,11 @@ object RecorderStore {
         if (!recording.value) return
         val pkg = targetPkg.value
         if (pkg != null && samples.isNotEmpty()) {
-            val fpsList = samples.map { it.fps }
+            val raw = samples.toList()
+            val warmupEnd = startedAt + 3000
+            val summary = raw.filter { it.t >= warmupEnd }.ifEmpty { raw }
+            val fpsList = summary.map { it.fps }
+            val lowCount = ((fpsList.size * 0.01f).toInt()).coerceAtLeast(1)
             val end = System.currentTimeMillis()
             val session = RecSession(
                 id = startedAt,
@@ -90,12 +96,13 @@ object RecorderStore {
                 durationMs = (end - startedAt).coerceAtLeast(0L),
                 fpsAvg = fpsList.average().toFloat(),
                 fpsMin = fpsList.minOrNull() ?: 0f,
-                fpsLow = fpsList.sorted().take(((fpsList.size * 0.01f).toInt()).coerceAtLeast(1)).average().toFloat(),
+                fpsLow = fpsList.sorted().take(lowCount).average().toFloat(),
                 fpsMax = fpsList.maxOrNull() ?: 0f,
-                jankAvg = samples.map { it.jank }.average().toFloat(),
-                powerAvg = samples.map { it.power }.average().toFloat(),
-                tempMax = samples.maxOfOrNull { it.temp } ?: 0f,
-                samples = samples.size
+                jankAvg = summary.map { it.jank }.average().toFloat(),
+                powerAvg = summary.map { it.power }.average().toFloat(),
+                tempMax = summary.maxOfOrNull { it.temp } ?: 0f,
+                samples = fpsList.size,
+                points = raw.takeLast(MAX_POINTS)
             )
             sessions.add(0, session)
             while (sessions.size > MAX_SESSIONS) sessions.removeAt(sessions.lastIndex)
@@ -116,6 +123,23 @@ object RecorderStore {
             val array = JSONArray(raw)
             for (i in 0 until array.length()) {
                 val o = array.getJSONObject(i)
+                val points = mutableListOf<RecSample>()
+                val pointsArray = o.optJSONArray("points")
+                if (pointsArray != null) {
+                    for (j in 0 until pointsArray.length()) {
+                        val p = pointsArray.getJSONObject(j)
+                        points.add(
+                            RecSample(
+                                t = p.optLong("t"),
+                                fps = p.optDouble("fps").toFloat(),
+                                jank = p.optDouble("jank").toFloat(),
+                                p99 = p.optDouble("p99").toFloat(),
+                                power = p.optDouble("power").toFloat(),
+                                temp = p.optDouble("temp").toFloat()
+                            )
+                        )
+                    }
+                }
                 sessions.add(
                     RecSession(
                         id = o.optLong("id"),
@@ -131,7 +155,8 @@ object RecorderStore {
                         jankAvg = o.optDouble("jankAvg").toFloat(),
                         powerAvg = o.optDouble("powerAvg").toFloat(),
                         tempMax = o.optDouble("tempMax").toFloat(),
-                        samples = o.optInt("samples")
+                        samples = o.optInt("samples"),
+                        points = points
                     )
                 )
             }
@@ -158,6 +183,20 @@ object RecorderStore {
                     put("powerAvg", s.powerAvg.toDouble())
                     put("tempMax", s.tempMax.toDouble())
                     put("samples", s.samples)
+                    val points = JSONArray()
+                    s.points.forEach { p ->
+                        points.put(
+                            JSONObject().apply {
+                                put("t", p.t)
+                                put("fps", p.fps.toDouble())
+                                put("jank", p.jank.toDouble())
+                                put("p99", p.p99.toDouble())
+                                put("power", p.power.toDouble())
+                                put("temp", p.temp.toDouble())
+                            }
+                        )
+                    }
+                    put("points", points)
                 }
             )
         }
@@ -167,6 +206,3 @@ object RecorderStore {
             .apply()
     }
 }
-
-
-
