@@ -1,4 +1,4 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import java.io.File
 import kotlin.math.abs
@@ -221,13 +221,13 @@ object RootShell {
             }
         }
         if (frames.size < 3) return null
-        val sorted = frames.sorted()
         val now = System.nanoTime()
-        if (sorted.last() < now - 2_000_000_000L) return Triple(0f, 0f, 0f)
-        val span = sorted.last() - sorted.first()
+        val recent = frames.filter { it >= now - 3_000_000_000L }.sorted()
+        if (recent.size < 3) return Triple(0f, 0f, 0f)
+        val span = recent.last() - recent.first()
         if (span <= 0L) return null
-        val fps = (sorted.size - 1) * 1_000_000_000f / span
-        val intervals = sorted.zipWithNext { a, b -> b - a }.filter { it > 0L }
+        val fps = (recent.size - 1) * 1_000_000_000f / span
+        val intervals = recent.zipWithNext { a, b -> b - a }.filter { it > 0L }
         if (intervals.isEmpty()) return null
         val sortedIntervals = intervals.sorted()
         val median = sortedIntervals[sortedIntervals.size / 2]
@@ -275,5 +275,6 @@ object RootShell {
         }
     }
 }
+
 
 

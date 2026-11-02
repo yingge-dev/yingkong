@@ -12,6 +12,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -103,8 +105,10 @@ private fun YingKongApp() {
     val ramHistory = remember { mutableStateListOf<Float>() }
     val battHistory = remember { mutableStateListOf<Float>() }
     val gpuFreqHistory = remember { mutableStateListOf<Float>() }
+    var tab by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(tab) {
+        if (tab != 0) return@LaunchedEffect
         while (true) {
             val s = withContext(Dispatchers.IO) { RootShell.snapshot() }
             snap = s
@@ -126,6 +130,9 @@ private fun YingKongApp() {
     }
 
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) { RecorderStore.load(context) }
+
     val appLabel = remember(snap?.fgPackage) {
         val pkg = snap?.fgPackage
         if (pkg == null) null else try {
@@ -169,6 +176,7 @@ private fun YingKongApp() {
                 )
             }
     ) {
+        if (tab == 0) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -224,6 +232,14 @@ private fun YingKongApp() {
                 gpuFreqHistory = gpuFreqHistory
             )
         }
+        } else if (tab == 1) {
+            RecordScreen(deviceName = Build.MODEL)
+        } else {
+            PlaceholderScreen(
+                title = when (tab) { 2 -> "工具"; 3 -> "应用"; else -> "设置" },
+                deviceName = Build.MODEL
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -242,6 +258,8 @@ private fun YingKongApp() {
         )
 
         BottomBar(
+            selected = tab,
+            onSelect = { tab = it },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -251,7 +269,7 @@ private fun YingKongApp() {
 }
 
 @Composable
-private fun TopBar(deviceName: String) {
+internal fun TopBar(deviceName: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -295,7 +313,7 @@ private fun TopBar(deviceName: String) {
 }
 
 @Composable
-private fun LivePill(text: String) {
+internal fun LivePill(text: String) {
     val transition = rememberInfiniteTransition(label = "live")
     val dotAlpha by transition.animateFloat(
         initialValue = 0.35f,
@@ -729,7 +747,7 @@ private fun Sparkline(
 }
 
 @Composable
-private fun BottomBar(modifier: Modifier = Modifier) {
+private fun BottomBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val tabs = listOf("控制台" to 0, "记录" to 1, "工具" to 2, "应用" to 3, "设置" to 4)
     Box(
         modifier = modifier
@@ -745,9 +763,9 @@ private fun BottomBar(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEachIndexed { index, tab ->
-                val active = index == 0
+                val active = index == selected
                 val tint = if (active) Orange else Tertiary
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(modifier = Modifier.clickable { onSelect(index) }, horizontalAlignment = Alignment.CenterHorizontally) {
                     if (tab.second == 4) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
@@ -818,5 +836,7 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
         }
     }
 }
+
+
 
 
