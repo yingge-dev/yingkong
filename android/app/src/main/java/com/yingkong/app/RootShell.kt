@@ -1,4 +1,4 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import java.io.File
 import kotlin.math.abs
@@ -58,6 +58,9 @@ object RootShell {
 
     private val prevTotal = HashMap<String, Long>()
     private val prevIdle = HashMap<String, Long>()
+    private var sfPrevCounts = HashMap<String, Long>()
+    private var sfPrevTime = 0L
+    private var sfPkg: String? = null
 
 
     fun snapshot(): Snapshot? {
@@ -176,10 +179,18 @@ object RootShell {
         var p99Ms = 0f
         if (fgPackage != null) {
             val result = parseFps(fgPackage)
-            if (result != null) {
+            if (result != null && result.first >= 1f) {
                 fps = result.first
                 jankPct = result.second
                 p99Ms = result.third
+            }
+            if (fps < 1f) {
+                val surface = surfaceFps(fgPackage)
+                if (surface != null) {
+                    fps = surface
+                    jankPct = 0f
+                    p99Ms = 0f
+                }
             }
         }
 
@@ -203,6 +214,51 @@ object RootShell {
             jankPct = jankPct,
             p99Ms = p99Ms
         )
+    }
+
+    private fun surfaceFps(pkg: String): Float? {
+        val out = execCmd("dumpsys SurfaceFlinger") ?: return null
+        if (sfPkg != pkg) {
+            sfPrevCounts.clear()
+            sfPrevTime = 0L
+            sfPkg = pkg
+        }
+        val now = System.nanoTime()
+        val counts = HashMap<String, Long>()
+        var layerKey: String? = null
+        out.lineSequence().forEach { line ->
+            val layer = Regex("""^\s+Layer \[(\d+)\] (.+)$""").find(line)
+            if (layer != null) {
+                layerKey = layer.groupValues[1] + "|" + layer.groupValues[2].take(120)
+                return@forEach
+            }
+            val key = layerKey ?: return@forEach
+            val frame = Regex("""\bframe=(\d+)""").find(line)
+            if (frame != null) {
+                counts[key] = frame.groupValues[1].toLongOrNull() ?: 0L
+                layerKey = null
+            }
+        }
+        val prev = sfPrevCounts
+        val dt = (now - sfPrevTime) / 1_000_000_000f
+        sfPrevCounts = counts
+        sfPrevTime = now
+        if (prev.isEmpty() || dt < 0.3f) return null
+        var best = 0L
+        counts.forEach { (key, value) ->
+            val name = key.substringAfter('|')
+            if (name.startsWith("VRI-") || name.contains("Background for") ||
+                name.contains("Bounds for") || name.contains("ActivityRecord") ||
+                name.contains("InputSink") || name.contains("com.android.systemui")
+            ) {
+                return@forEach
+            }
+            val delta = value - (prev[key] ?: 0L)
+            if (delta > best) best = delta
+        }
+        if (best <= 0L) return null
+        val fps = best / dt
+        return if (fps in 1f..220f) fps else null
     }
 
     private fun parseFps(pkg: String): Triple<Float, Float, Float>? {

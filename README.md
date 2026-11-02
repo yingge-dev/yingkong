@@ -40,6 +40,8 @@ Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATU
 - 不含登录、收费、绑机器；全部本地运行
 - **记录页已跑通**：前台服务 + 通知栏停止，无悬浮窗、无无障碍；场次保存平均 FPS / 1% low / Jank / 功耗 / 温度 / 时长，重启不丢
 - **场次详情**：逐秒 FPS 曲线、Jank 标记、温度/功耗曲线、前 3 秒预热区间；最多保存 1200 个样本点
+- **FPS 双通道**：普通 App 用 gfxinfo 帧时间；游戏/视频走 SurfaceView 等图层时，用 SurfaceFlinger 图层 frame 计数差值回退，避免只有 0 或 165Hz 合成率
+- 已知限制：SurfaceFlinger 回退路径暂时没有 Jank/帧时，需要后续补 FrameTimeline
 - 工具 / 应用 / 设置三个 Tab 暂未接页面，先不放假数据
 - 构建环境：JDK 17 + Android SDK 35 + Gradle 8.9，`android/` 为 Compose 工程
 - 构建命令（Windows）：
@@ -93,6 +95,7 @@ assets/         字体、图标
 ```
 
 License: TBD
+
 
 
 
