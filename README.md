@@ -29,6 +29,22 @@
 
 Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATURES.md)。参考官方站 [omarea.com](https://omarea.com/) 与其 8 张实机界面，只学功能与信息结构，不复制界面与素材。
 
+## Android APK（M2 壳）
+
+第一个能装的 APK 已经构建出来，包名 `com.yingkong.app`，minSdk 26 / targetSdk 35，debug 签名。
+
+- 下载：[GitHub Releases](https://github.com/yingge-dev/yingkong/releases)
+- 当前范围：控制台（FPS、6 项指标、8 核负载、Top 进程、GPU 频率曲线、时间轴）
+- 数据仍是模拟值，**不会读取或修改系统**；底部导航暂未接页面
+- 构建环境：JDK 17 + Android SDK 35 + Gradle 8.9，`android/` 为 Compose 工程
+- 构建命令（Windows）：
+
+```powershell
+$env:JAVA_HOME='<jdk17>'
+$env:ANDROID_HOME='<android-sdk>'
+gradle -p android assembleDebug
+```
+
 ## 设计
 
 - 视觉「晨光」：浅色、玻璃、连续圆角、单一信号色，参考 Xiaomi HyperOS 与 Apple HIG 的方法。
