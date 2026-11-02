@@ -25,6 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -162,10 +165,10 @@ private fun YingKongApp() {
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 2.dp, bottom = 108.dp)
+                .padding(top = 2.dp, bottom = 132.dp)
         ) {
             TopBar()
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("控制台", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.6).sp)
                 Spacer(Modifier.width(8.dp))
@@ -185,10 +188,10 @@ private fun YingKongApp() {
             )
             Spacer(Modifier.height(10.dp))
 
-            CoresCard(coreLoads = coreLoads)
+            ProcessCard(cpu = cpu)
             Spacer(Modifier.height(10.dp))
 
-            ProcessCard(cpu = cpu)
+            CoresCard(coreLoads = coreLoads)
             Spacer(Modifier.height(10.dp))
 
             TimelineCard(
@@ -200,6 +203,22 @@ private fun YingKongApp() {
 
             ActivityStrip()
         }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(126.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to Color.Transparent,
+                            0.45f to Color(0xFFF2F2F7).copy(alpha = 0.94f),
+                            1f to Color(0xFFF2F2F7)
+                        )
+                    )
+                )
+        )
 
         BottomBar(
             modifier = Modifier
@@ -244,7 +263,12 @@ private fun TopBar() {
                 .background(Color.White.copy(alpha = 0.7f)),
             contentAlignment = Alignment.Center
         ) {
-            TabIcon(kind = 4, tint = Color(0xFF3A3A3C), iconSize = 15.dp)
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "设置",
+                tint = Color(0xFF3A3A3C),
+                modifier = Modifier.size(15.dp)
+            )
         }
     }
 }
@@ -267,13 +291,13 @@ private fun LivePill(text: String) {
 @Composable
 private fun StatusLine() {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(4.dp).clip(CircleShape).background(Green))
+        Box(Modifier.size(4.dp).clip(CircleShape).background(Orange))
         Spacer(Modifier.width(5.dp))
-        Text("Shizuku 已连接", fontSize = 8.5.sp, color = Tertiary)
+        Text("M2 演示版", fontSize = 8.5.sp, color = Tertiary)
         Text("  ·  ", fontSize = 8.5.sp, color = Tertiary)
-        Text("采样 1s", fontSize = 8.5.sp, color = Tertiary)
+        Text("模拟数据", fontSize = 8.5.sp, color = Tertiary)
         Text("  ·  ", fontSize = 8.5.sp, color = Tertiary)
-        Text("165Hz 已核验", fontSize = 8.5.sp, color = GreenInk)
+        Text("不修改系统", fontSize = 8.5.sp, color = Tertiary)
     }
 }
 
@@ -282,7 +306,7 @@ private fun HeroCard(fps: Float, low: Float, jank: Float, history: List<Float>) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(24.dp), clip = false)
+            .shadow(8.dp, RoundedCornerShape(24.dp), clip = false)
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFFF7F0))))
             .padding(16.dp)
@@ -314,7 +338,7 @@ private fun HeroCard(fps: Float, low: Float, jank: Float, history: List<Float>) 
         Sparkline(
             points = history,
             color = Orange,
-            modifier = Modifier.fillMaxWidth().height(60.dp),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
             minValue = 102f,
             maxValue = 124f,
             fill = true
@@ -353,8 +377,8 @@ private fun MetricGrid(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricTile("CPU", "%.0f".format(cpu), "%", "8 核", "1.9 GHz · 大核 2.6", Purple, cpuHistory, Modifier.weight(1f))
-            MetricTile("GPU", "%.0f".format(gpu), "%", "Adreno", "%.0f MHz · 负载 %.0f%%".format(gpuFreq, gpu), Blue, gpuHistory, Modifier.weight(1f))
+            MetricTile("CPU", "%.0f".format(cpu), "%", "8 核", "3.5 GHz · 大核 4.3", Purple, cpuHistory, Modifier.weight(1f))
+            MetricTile("GPU", "%.0f".format(gpu), "%", "Adreno 830", "%.0f MHz · 负载 %.0f%%".format(gpuFreq, gpu), Blue, gpuHistory, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricTile("内存", "%.1f".format(ram), "G", "ZRAM 1.2G", "/ 16G · 缓存 3.1G", Teal, ramHistory, Modifier.weight(1f))
@@ -374,8 +398,8 @@ private fun MetricTile(
 ) {
     Column(
         modifier = modifier
-            .height(84.dp)
-            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false)
+            .height(78.dp)
+            .shadow(4.dp, RoundedCornerShape(18.dp), clip = false)
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White.copy(alpha = 0.9f))
             .padding(horizontal = 11.dp, vertical = 9.dp)
@@ -397,11 +421,11 @@ private fun MetricTile(
 
 @Composable
 private fun CoresCard(coreLoads: List<Float>) {
-    val freqs = listOf("2.6G", "2.6G", "1.9G", "1.9G", "1.9G", "1.0G", "1.0G", "1.0G")
+    val freqs = listOf("4.3G", "4.3G", "3.5G", "3.5G", "3.5G", "3.5G", "3.5G", "3.5G")
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false)
+            .shadow(4.dp, RoundedCornerShape(22.dp), clip = false)
             .clip(RoundedCornerShape(22.dp))
             .background(Color.White.copy(alpha = 0.9f))
             .padding(horizontal = 14.dp, vertical = 11.dp)
@@ -409,7 +433,7 @@ private fun CoresCard(coreLoads: List<Float>) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("CPU 核心", fontSize = 10.5.sp, color = Muted)
             Spacer(Modifier.weight(1f))
-            Text("8 核 · 2 + 6 · 最高 2.6GHz", fontSize = 8.sp, color = Tertiary)
+            Text("8 核 · 2 + 6 · 最高 4.3GHz", fontSize = 8.sp, color = Tertiary)
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -451,7 +475,7 @@ private fun ProcessCard(cpu: Float) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false)
+            .shadow(4.dp, RoundedCornerShape(22.dp), clip = false)
             .clip(RoundedCornerShape(22.dp))
             .background(Color.White.copy(alpha = 0.9f))
             .padding(horizontal = 14.dp, vertical = 11.dp)
@@ -464,7 +488,7 @@ private fun ProcessCard(cpu: Float) {
         Spacer(Modifier.height(4.dp))
         rows.forEachIndexed { index, row ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.width(86.dp)) {
@@ -505,7 +529,7 @@ private fun TimelineCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(22.dp), clip = false)
+            .shadow(4.dp, RoundedCornerShape(22.dp), clip = false)
             .clip(RoundedCornerShape(22.dp))
             .background(Color.White.copy(alpha = 0.9f))
             .padding(horizontal = 14.dp, vertical = 11.dp)
@@ -540,7 +564,7 @@ private fun ActivityStrip() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(18.dp), clip = false)
+            .shadow(4.dp, RoundedCornerShape(18.dp), clip = false)
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White.copy(alpha = 0.9f))
             .padding(horizontal = 14.dp, vertical = 11.dp),
@@ -610,9 +634,9 @@ private fun BottomBar(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .height(62.dp)
-            .shadow(16.dp, RoundedCornerShape(31.dp), clip = false)
+            .shadow(12.dp, RoundedCornerShape(31.dp), clip = false)
             .clip(RoundedCornerShape(31.dp))
-            .background(Color.White.copy(alpha = 0.8f))
+            .background(Color(0xFFFBFAFD))
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -623,7 +647,16 @@ private fun BottomBar(modifier: Modifier = Modifier) {
                 val active = index == 0
                 val tint = if (active) Orange else Tertiary
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TabIcon(kind = tab.second, tint = tint, iconSize = 19.dp)
+                    if (tab.second == 4) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    } else {
+                        TabIcon(kind = tab.second, tint = tint, iconSize = 19.dp)
+                    }
                     Spacer(Modifier.height(2.dp))
                     Text(tab.first, fontSize = 8.sp, color = tint)
                 }
@@ -695,3 +728,4 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
         }
     }
 }
+
