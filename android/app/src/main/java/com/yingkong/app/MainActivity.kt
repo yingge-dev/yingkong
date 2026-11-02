@@ -1,15 +1,20 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,13 +37,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -51,20 +56,20 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import kotlin.random.Random
 
 private val Ink = Color(0xFF1D1D1F)
 private val Muted = Color(0xFF86868B)
@@ -72,7 +77,6 @@ private val Tertiary = Color(0xFFA9A9AE)
 private val Orange = Color(0xFFFF6900)
 private val OrangeSoft = Color(0x1AFF6900)
 private val Green = Color(0xFF34C759)
-private val GreenInk = Color(0xFF1B8F3A)
 private val Blue = Color(0xFF0A84FF)
 private val Purple = Color(0xFFAF52DE)
 private val Teal = Color(0xFF30B0C7)
@@ -89,83 +93,54 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun YingKongApp() {
-    var fps by remember { mutableFloatStateOf(118.6f) }
-    var low by remember { mutableFloatStateOf(96.2f) }
-    var jank by remember { mutableFloatStateOf(1.8f) }
-    var temp by remember { mutableFloatStateOf(38.6f) }
-    var power by remember { mutableFloatStateOf(5.82f) }
-    var cpu by remember { mutableFloatStateOf(42f) }
-    var gpu by remember { mutableFloatStateOf(68f) }
-    var ram by remember { mutableFloatStateOf(9.2f) }
-    var batt by remember { mutableFloatStateOf(82f) }
-    var gpuFreq by remember { mutableFloatStateOf(680f) }
+    var snap by remember { mutableStateOf<Snapshot?>(null) }
 
-    val fpsHistory = remember { mutableStateListOf<Float>().apply { repeat(48) { add(116f + Random.nextFloat() * 4f) } } }
-    val tempHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(38f + Random.nextFloat() * 0.6f) } } }
-    val powerHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(5.5f + Random.nextFloat() * 0.4f) } } }
-    val cpuHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(40f + Random.nextFloat() * 8f) } } }
-    val gpuHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(62f + Random.nextFloat() * 10f) } } }
-    val ramHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(9.1f + Random.nextFloat() * 0.2f) } } }
-    val battHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(82f) } } }
-    val gpuFreqHistory = remember { mutableStateListOf<Float>().apply { repeat(24) { add(650f + Random.nextFloat() * 80f) } } }
-    val coreLoads = remember { mutableStateListOf(52f, 48f, 44f, 40f, 38f, 32f, 30f, 28f) }
-    val coreFreqLabels = remember { mutableStateListOf("3.5G", "3.5G", "3.5G", "3.5G", "3.5G", "3.5G", "4.3G", "4.3G") }
-    var coreHint by remember { mutableStateOf("8 核 · 2 + 6 · 最高 4.3GHz") }
-    var rootOk by remember { mutableStateOf(false) }
-    val processes = remember { mutableStateListOf<ProcRow>() }
+    val fpsHistory = remember { mutableStateListOf<Float>() }
+    val tempHistory = remember { mutableStateListOf<Float>() }
+    val powerHistory = remember { mutableStateListOf<Float>() }
+    val cpuHistory = remember { mutableStateListOf<Float>() }
+    val gpuHistory = remember { mutableStateListOf<Float>() }
+    val ramHistory = remember { mutableStateListOf<Float>() }
+    val battHistory = remember { mutableStateListOf<Float>() }
+    val gpuFreqHistory = remember { mutableStateListOf<Float>() }
 
     LaunchedEffect(Unit) {
         while (true) {
-            delay(1000)
-
-            // FPS 暂时仍是模拟值，下一步接 SurfaceFlinger
-            fps = (fps + (Random.nextFloat() - 0.5f) * 2.4f).coerceIn(96f, 122f)
-            fpsHistory.add(fps); if (fpsHistory.size > 48) fpsHistory.removeAt(0)
-            low = ((fpsHistory.minOrNull() ?: 96f) - 2f).coerceAtLeast(88f)
-            jank = 1.2f + Random.nextFloat() * 1.2f
-
-            val snap = withContext(Dispatchers.IO) { RootShell.snapshot() }
-            if (snap != null) {
-                rootOk = true
-                cpu = snap.cpu
-                gpu = snap.gpu
-                gpuFreq = snap.gpuFreq
-                ram = snap.ramUsedGb
-                temp = snap.temp
-                power = snap.power
-                batt = snap.batt
-                snap.coreLoads.forEachIndexed { i, v -> if (i < coreLoads.size) coreLoads[i] = v }
-                if (snap.coreMaxMhz.size >= 8) {
-                    coreFreqLabels.clear()
-                    snap.coreMaxMhz.take(8).forEach { coreFreqLabels.add("%.1fG".format(it / 1000f)) }
-                    val maxGhz = (snap.coreMaxMhz.maxOrNull() ?: 0f) / 1000f
-                    coreHint = "8 核 · 2 + 6 · 最高 %.1fGHz".format(maxGhz)
+            val s = withContext(Dispatchers.IO) { RootShell.snapshot() }
+            snap = s
+            if (s != null) {
+                if (s.fps > 0f) {
+                    fpsHistory.add(s.fps)
+                    if (fpsHistory.size > 48) fpsHistory.removeAt(0)
                 }
-                processes.clear()
-                processes.addAll(snap.processes)
-            } else {
-                rootOk = false
-                temp = 37.9f + Random.nextFloat() * 0.7f
-                power = 5.55f + Random.nextFloat() * 0.5f
-                cpu = 38f + Random.nextFloat() * 12f
-                gpu = 62f + Random.nextFloat() * 12f
-                gpuFreq = 620f + Random.nextFloat() * 120f
-                ram = 9.1f + Random.nextFloat() * 0.3f
-                batt = (batt + 0.01f).coerceAtMost(99f)
-                for (i in coreLoads.indices) {
-                    coreLoads[i] = (coreLoads[i] + (Random.nextFloat() - 0.5f) * 14f).coerceIn(8f, 96f)
-                }
-                if (processes.isEmpty()) processes.addAll(mockProcesses())
+                tempHistory.add(s.thermal); if (tempHistory.size > 24) tempHistory.removeAt(0)
+                powerHistory.add(s.power); if (powerHistory.size > 24) powerHistory.removeAt(0)
+                cpuHistory.add(s.cpu); if (cpuHistory.size > 24) cpuHistory.removeAt(0)
+                gpuHistory.add(s.gpu); if (gpuHistory.size > 24) gpuHistory.removeAt(0)
+                ramHistory.add(s.ramUsedGb); if (ramHistory.size > 24) ramHistory.removeAt(0)
+                battHistory.add(s.batt); if (battHistory.size > 24) battHistory.removeAt(0)
+                gpuFreqHistory.add(s.gpuFreq); if (gpuFreqHistory.size > 24) gpuFreqHistory.removeAt(0)
             }
-
-            tempHistory.add(temp); if (tempHistory.size > 24) tempHistory.removeAt(0)
-            powerHistory.add(power); if (powerHistory.size > 24) powerHistory.removeAt(0)
-            cpuHistory.add(cpu); if (cpuHistory.size > 24) cpuHistory.removeAt(0)
-            gpuHistory.add(gpu); if (gpuHistory.size > 24) gpuHistory.removeAt(0)
-            gpuFreqHistory.add(gpuFreq); if (gpuFreqHistory.size > 24) gpuFreqHistory.removeAt(0)
-            ramHistory.add(ram); if (ramHistory.size > 24) ramHistory.removeAt(0)
-            battHistory.add(batt); if (battHistory.size > 24) battHistory.removeAt(0)
+            delay(1000)
         }
+    }
+
+    val context = LocalContext.current
+    val appLabel = remember(snap?.fgPackage) {
+        val pkg = snap?.fgPackage
+        if (pkg == null) null else try {
+            context.packageManager.getApplicationLabel(
+                context.packageManager.getApplicationInfo(pkg, 0)
+            ).toString()
+        } catch (e: Exception) {
+            pkg
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    val refreshHz = remember {
+        val wm = context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
+        wm.defaultDisplay.refreshRate
     }
 
     Box(
@@ -202,41 +177,52 @@ private fun YingKongApp() {
                 .padding(horizontal = 16.dp)
                 .padding(top = 2.dp, bottom = 132.dp)
         ) {
-            TopBar()
+            TopBar(deviceName = Build.MODEL)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("控制台", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.6).sp)
                 Spacer(Modifier.width(8.dp))
-                LivePill("LIVE")
+                LivePill(if (snap != null) "LIVE" else "OFFLINE")
             }
             Spacer(Modifier.height(4.dp))
-            StatusLine(rootOk)
+            StatusLine(rootOk = snap != null)
             Spacer(Modifier.height(13.dp))
 
-            HeroCard(fps = fps, low = low, jank = jank, history = fpsHistory)
+            HeroCard(
+                appLabel = appLabel,
+                fps = snap?.fps ?: 0f,
+                p99 = snap?.p99Ms ?: 0f,
+                jank = snap?.jankPct ?: 0f,
+                refreshHz = refreshHz,
+                available = snap != null,
+                history = fpsHistory
+            )
             Spacer(Modifier.height(10.dp))
 
             MetricGrid(
-                cpu = cpu, gpu = gpu, gpuFreq = gpuFreq, ram = ram, temp = temp, power = power, batt = batt,
-                cpuHistory = cpuHistory, gpuHistory = gpuHistory, ramHistory = ramHistory,
-                tempHistory = tempHistory, powerHistory = powerHistory, battHistory = battHistory
+                snap = snap,
+                cpuHistory = cpuHistory,
+                gpuHistory = gpuHistory,
+                ramHistory = ramHistory,
+                tempHistory = tempHistory,
+                powerHistory = powerHistory,
+                battHistory = battHistory
             )
             Spacer(Modifier.height(10.dp))
 
-            ProcessCard(processes)
+            ProcessCard(processes = snap?.processes.orEmpty())
             Spacer(Modifier.height(10.dp))
 
-            CoresCard(coreLoads = coreLoads, labels = coreFreqLabels, hint = coreHint)
+            CoresCard(snap = snap)
             Spacer(Modifier.height(10.dp))
 
             TimelineCard(
-                fps = fps, temp = temp, power = power, gpuFreq = gpuFreq,
-                fpsHistory = fpsHistory, tempHistory = tempHistory, powerHistory = powerHistory,
+                snap = snap,
+                fpsHistory = fpsHistory,
+                tempHistory = tempHistory,
+                powerHistory = powerHistory,
                 gpuFreqHistory = gpuFreqHistory
             )
-            Spacer(Modifier.height(10.dp))
-
-            ActivityStrip()
         }
 
         Box(
@@ -265,7 +251,7 @@ private fun YingKongApp() {
 }
 
 @Composable
-private fun TopBar() {
+private fun TopBar(deviceName: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -288,7 +274,7 @@ private fun TopBar() {
         ) {
             Box(Modifier.size(4.dp).clip(CircleShape).background(Green))
             Spacer(Modifier.width(5.dp))
-            Text("K90 至尊版", fontSize = 9.5.sp, color = Color(0xFF6E6E73))
+            Text(deviceName, fontSize = 9.5.sp, color = Color(0xFF6E6E73))
         }
         Spacer(Modifier.width(7.dp))
         Box(
@@ -310,6 +296,13 @@ private fun TopBar() {
 
 @Composable
 private fun LivePill(text: String) {
+    val transition = rememberInfiniteTransition(label = "live")
+    val dotAlpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+        label = "dot"
+    )
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -317,7 +310,7 @@ private fun LivePill(text: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(4.dp).clip(CircleShape).background(Orange))
+        Box(Modifier.size(4.dp).alpha(dotAlpha).clip(CircleShape).background(Orange))
         Spacer(Modifier.width(4.dp))
         Text(text, fontSize = 8.5.sp, color = Orange, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
     }
@@ -330,14 +323,21 @@ private fun StatusLine(rootOk: Boolean) {
         Spacer(Modifier.width(5.dp))
         Text(if (rootOk) "Root 已授权" else "等待 Root 授权", fontSize = 8.5.sp, color = Tertiary)
         Text("  ·  ", fontSize = 8.5.sp, color = Tertiary)
-        Text(if (rootOk) "真实数据" else "演示数据", fontSize = 8.5.sp, color = Tertiary)
-        Text("  ·  ", fontSize = 8.5.sp, color = Tertiary)
-        Text("FPS 模拟", fontSize = 8.5.sp, color = Tertiary)
+        Text(if (rootOk) "实时数据" else "暂无数据", fontSize = 8.5.sp, color = Tertiary)
     }
 }
 
 @Composable
-private fun HeroCard(fps: Float, low: Float, jank: Float, history: List<Float>) {
+private fun HeroCard(
+    appLabel: String?,
+    fps: Float,
+    p99: Float,
+    jank: Float,
+    refreshHz: Float,
+    available: Boolean,
+    history: List<Float>
+) {
+    val hasFps = available && fps > 0f
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -347,35 +347,46 @@ private fun HeroCard(fps: Float, low: Float, jank: Float, history: List<Float>) 
             .padding(16.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("原神 · 极高画质", fontSize = 10.5.sp, color = Color(0xFF6E6E73), fontWeight = FontWeight.Medium)
-            Spacer(Modifier.weight(1f))
-            Text("LIVE", fontSize = 8.5.sp, color = Orange, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Text(
+                text = appLabel ?: if (available) "未检测到前台应用" else "等待 Root 授权",
+                fontSize = 10.5.sp,
+                color = Color(0xFF6E6E73),
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                if (hasFps) "FPS" else "NO DATA",
+                fontSize = 8.5.sp,
+                color = if (hasFps) Orange else Tertiary,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp
+            )
         }
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = "%.1f".format(fps),
+                text = if (hasFps) "%.1f".format(fps) else "—",
                 fontSize = 56.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Ink,
+                color = if (hasFps) Ink else Tertiary,
                 letterSpacing = (-2.2).sp
             )
             Text("FPS", fontSize = 9.sp, color = Muted, modifier = Modifier.padding(start = 5.dp, bottom = 10.dp))
             Spacer(Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(bottom = 8.dp)) {
                 Row {
-                    MiniStat("%.1f".format(low), "1% LOW")
+                    MiniStat(if (hasFps) "%.1f".format(p99) else "—", "99% 帧时")
                     Spacer(Modifier.width(14.dp))
-                    MiniStat("%.1f".format(jank), "抖动 ms")
+                    MiniStat(if (hasFps) "%.1f".format(jank) else "—", "Jank %")
                 }
             }
         }
         Sparkline(
             points = history,
             color = Orange,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            minValue = 102f,
-            maxValue = 124f,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
             fill = true
         )
         Spacer(Modifier.height(7.dp))
@@ -386,12 +397,23 @@ private fun HeroCard(fps: Float, low: Float, jank: Float, history: List<Float>) 
                     .background(Color(0x1A34C759))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text("165Hz 已核验", fontSize = 8.5.sp, color = GreenInk)
+                Text(
+                    if (refreshHz > 0f) "%.0fHz 面板".format(refreshHz) else "刷新率 —",
+                    fontSize = 8.5.sp,
+                    color = Color(0xFF1B8F3A)
+                )
             }
             Spacer(Modifier.width(8.dp))
-            Text("本局 18:42", fontSize = 8.5.sp, color = Muted)
+            Text("采样 1s", fontSize = 8.5.sp, color = Muted)
             Spacer(Modifier.weight(1f))
-            Text("平均 117.4 · 最高 121.8", fontSize = 9.sp, color = Orange, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = if (history.isNotEmpty()) {
+                    "平均 %.1f · 最高 %.1f".format(history.average(), history.max())
+                } else "平均 — · 最高 —",
+                fontSize = 9.sp,
+                color = if (history.isNotEmpty()) Orange else Tertiary,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -406,22 +428,65 @@ private fun MiniStat(value: String, label: String) {
 
 @Composable
 private fun MetricGrid(
-    cpu: Float, gpu: Float, gpuFreq: Float, ram: Float, temp: Float, power: Float, batt: Float,
-    cpuHistory: List<Float>, gpuHistory: List<Float>, ramHistory: List<Float>,
-    tempHistory: List<Float>, powerHistory: List<Float>, battHistory: List<Float>
+    snap: Snapshot?,
+    cpuHistory: List<Float>,
+    gpuHistory: List<Float>,
+    ramHistory: List<Float>,
+    tempHistory: List<Float>,
+    powerHistory: List<Float>,
+    battHistory: List<Float>
 ) {
+    val available = snap != null
+    val cpu = snap?.cpu ?: 0f
+    val gpu = snap?.gpu ?: 0f
+    val gpuFreq = snap?.gpuFreq ?: 0f
+    val ram = snap?.ramUsedGb ?: 0f
+    val ramTotal = snap?.ramTotalGb ?: 0f
+    val temp = snap?.thermal ?: 0f
+    val batteryTemp = snap?.batteryTemp ?: 0f
+    val voltage = snap?.voltage ?: 0f
+    val currentMa = snap?.currentMa ?: 0f
+    val power = snap?.power ?: 0f
+    val batt = snap?.batt ?: 0f
+    val coreCount = snap?.coreLoads?.size ?: 0
+    val maxGhz = (snap?.coreMaxMhz?.maxOrNull() ?: 0f) / 1000f
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricTile("CPU", "%.0f".format(cpu), "%", "8 核", "3.5 GHz · 大核 4.3", Purple, cpuHistory, Modifier.weight(1f))
-            MetricTile("GPU", "%.0f".format(gpu), "%", "Adreno 830", "%.0f MHz · 负载 %.0f%%".format(gpuFreq, gpu), Blue, gpuHistory, Modifier.weight(1f))
+            MetricTile(
+                "CPU", "%.0f".format(cpu), "%", if (available) "$coreCount 核" else "—",
+                if (available) "最高 %.1fGHz".format(maxGhz) else "等待 Root 授权",
+                Purple, cpuHistory, available, Modifier.weight(1f)
+            )
+            MetricTile(
+                "GPU", "%.0f".format(gpu), "%", "GPU",
+                if (available) "%.0f MHz".format(gpuFreq) else "等待 Root 授权",
+                Blue, gpuHistory, available, Modifier.weight(1f)
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricTile("内存", "%.1f".format(ram), "G", "ZRAM 1.2G", "/ 16G · 缓存 3.1G", Teal, ramHistory, Modifier.weight(1f))
-            MetricTile("温度", "%.1f".format(temp), "°C", "机身", "CPU 41.2 · 电池 34.1", Orange, tempHistory, Modifier.weight(1f))
+            MetricTile(
+                "内存", "%.1f".format(ram), "G", if (available) "%.0fG".format(ramTotal) else "—",
+                if (available) "可用 %.1fG".format((ramTotal - ram).coerceAtLeast(0f)) else "等待 Root 授权",
+                Teal, ramHistory, available, Modifier.weight(1f)
+            )
+            MetricTile(
+                "温度", "%.1f".format(temp), "°C", if (available) "电池 %.1f".format(batteryTemp) else "—",
+                if (available) "热点温度" else "等待 Root 授权",
+                Orange, tempHistory, available, Modifier.weight(1f)
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetricTile("功耗", "%.2f".format(power), "W", "整机", "电池 4.1 · 屏幕 1.7", Amber, powerHistory, Modifier.weight(1f))
-            MetricTile("电池", "%.0f".format(batt), "%", "充电 34W", "12.4V · 2.7A · 28min→80%", Green, battHistory, Modifier.weight(1f))
+            MetricTile(
+                "功耗", "%.2f".format(power), "W", if (available) (if (currentMa > 50f) "充电中" else "放电中") else "—",
+                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待 Root 授权",
+                Amber, powerHistory, available, Modifier.weight(1f)
+            )
+            MetricTile(
+                "电池", "%.0f".format(batt), "%", if (available) (if (currentMa > 50f) "充电" else "放电") else "—",
+                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待 Root 授权",
+                Green, battHistory, available, Modifier.weight(1f)
+            )
         }
     }
 }
@@ -429,7 +494,7 @@ private fun MetricGrid(
 @Composable
 private fun MetricTile(
     label: String, value: String, unit: String, tag: String, sub: String,
-    color: Color, data: List<Float>, modifier: Modifier = Modifier
+    color: Color, data: List<Float>, available: Boolean, modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
@@ -445,17 +510,31 @@ private fun MetricTile(
             Text(tag, fontSize = 7.sp, color = Tertiary)
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink, letterSpacing = (-0.5).sp)
-            Text(unit, fontSize = 8.5.sp, color = Muted, modifier = Modifier.padding(start = 1.dp, bottom = 2.dp))
+            Text(
+                if (available) value else "—",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (available) Ink else Tertiary,
+                letterSpacing = (-0.5).sp
+            )
+            if (available) {
+                Text(unit, fontSize = 8.5.sp, color = Muted, modifier = Modifier.padding(start = 1.dp, bottom = 2.dp))
+            }
         }
-        Text(sub, fontSize = 7.sp, color = Tertiary, maxLines = 1)
+        Text(sub, fontSize = 7.sp, color = Tertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
         Sparkline(points = data, color = color, modifier = Modifier.fillMaxWidth().height(14.dp))
     }
 }
 
 @Composable
-private fun CoresCard(coreLoads: List<Float>, labels: List<String>, hint: String) {
+private fun CoresCard(snap: Snapshot?) {
+    val loads = snap?.coreLoads ?: List(8) { 0f }
+    val labels = snap?.coreMaxMhz?.map { "%.1fG".format(it / 1000f) } ?: List(8) { "—" }
+    val hint = if (snap != null && snap.coreMaxMhz.isNotEmpty()) {
+        "%d 核 · 最高 %.1fGHz".format(loads.size, (snap.coreMaxMhz.maxOrNull() ?: 0f) / 1000f)
+    } else "无数据"
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -471,7 +550,7 @@ private fun CoresCard(coreLoads: List<Float>, labels: List<String>, hint: String
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            coreLoads.forEachIndexed { i, load ->
+            loads.forEachIndexed { i, load ->
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("$i", fontSize = 6.5.sp, color = Tertiary)
                     Spacer(Modifier.height(2.dp))
@@ -486,31 +565,23 @@ private fun CoresCard(coreLoads: List<Float>, labels: List<String>, hint: String
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
-                                .fillMaxHeight((load / 100f).coerceIn(0.08f, 1f))
+                                .fillMaxHeight((load / 100f).coerceIn(0.02f, 1f))
                                 .background(Brush.verticalGradient(listOf(Color(0xFFFFB27A), Orange)))
                         )
                     }
                     Spacer(Modifier.height(2.dp))
-                    Text(labels.getOrElse(i) { "-" }, fontSize = 6.5.sp, color = Muted)
+                    Text(labels.getOrElse(i) { "—" }, fontSize = 6.5.sp, color = Muted)
                 }
             }
         }
     }
 }
 
-private fun mockProcesses(): List<ProcRow> = listOf(
-    ProcRow("原神", 45.8f, 2457f),
-    ProcRow("system_server", 12.3f, 1843f),
-    ProcRow("surfaceflinger", 8.1f, 420f),
-    ProcRow("微信", 4.2f, 980f)
-)
-
 private fun formatMem(memMb: Float): String =
     if (memMb >= 1024f) "%.1fG".format(memMb / 1024f) else "%.0fM".format(memMb)
 
 @Composable
 private fun ProcessCard(processes: List<ProcRow>) {
-    val rows = if (processes.isEmpty()) mockProcesses() else processes.take(4)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -522,39 +593,48 @@ private fun ProcessCard(processes: List<ProcRow>) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Top 进程", fontSize = 10.5.sp, color = Muted)
             Spacer(Modifier.weight(1f))
-            Text(if (processes.isEmpty()) "示例数据" else "按 CPU 排序", fontSize = 8.sp, color = Tertiary)
+            Text(if (processes.isEmpty()) "无数据" else "按 CPU 排序", fontSize = 8.sp, color = Tertiary)
         }
         Spacer(Modifier.height(4.dp))
-        rows.forEachIndexed { index, row ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.width(86.dp)) {
-                    Text(row.name, fontSize = 9.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(formatMem(row.memMb), fontSize = 7.sp, color = Tertiary)
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Hairline)
+        if (processes.isEmpty()) {
+            Text(
+                "打开应用或游戏后，这里会显示真实进程",
+                fontSize = 8.5.sp,
+                color = Tertiary,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+        } else {
+            processes.take(4).forEachIndexed { index, row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Column(modifier = Modifier.width(86.dp)) {
+                        Text(row.name, fontSize = 9.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(formatMem(row.memMb), fontSize = 7.sp, color = Tertiary)
+                    }
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth((row.cpu / 100f).coerceIn(0.05f, 1f))
-                            .fillMaxHeight()
-                            .background(if (index == 0) Orange else if (row.name.startsWith("system")) Purple else Blue)
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Hairline)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((row.cpu / 100f).coerceIn(0.02f, 1f))
+                                .fillMaxHeight()
+                                .background(if (index == 0) Orange else if (row.name.startsWith("system")) Purple else Blue)
+                        )
+                    }
+                    Text(
+                        "%.1f%%".format(row.cpu),
+                        fontSize = 8.sp,
+                        color = Color(0xFF6E6E73),
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(42.dp)
                     )
                 }
-                Text(
-                    "%.1f%%".format(row.cpu),
-                    fontSize = 8.sp,
-                    color = Color(0xFF6E6E73),
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.width(42.dp)
-                )
             }
         }
     }
@@ -562,9 +642,13 @@ private fun ProcessCard(processes: List<ProcRow>) {
 
 @Composable
 private fun TimelineCard(
-    fps: Float, temp: Float, power: Float, gpuFreq: Float,
-    fpsHistory: List<Float>, tempHistory: List<Float>, powerHistory: List<Float>, gpuFreqHistory: List<Float>
+    snap: Snapshot?,
+    fpsHistory: List<Float>,
+    tempHistory: List<Float>,
+    powerHistory: List<Float>,
+    gpuFreqHistory: List<Float>
 ) {
+    val available = snap != null
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -576,13 +660,13 @@ private fun TimelineCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("同一根时间轴", fontSize = 10.5.sp, color = Muted)
             Spacer(Modifier.weight(1f))
-            Text("FPS · 温度 · 功耗", fontSize = 8.sp, color = Tertiary)
+            Text("FPS · 温度 · 功耗 · GPU", fontSize = 8.sp, color = Tertiary)
         }
         Spacer(Modifier.height(5.dp))
-        TimelineRow("FPS", "%.1f".format(fps), fpsHistory.takeLast(24), Orange)
-        TimelineRow("温度", "%.1f°".format(temp), tempHistory, Color(0xFFFFB27A))
-        TimelineRow("功耗", "%.2fW".format(power), powerHistory, Blue)
-        TimelineRow("GPU", "%.0fM".format(gpuFreq), gpuFreqHistory, Teal)
+        TimelineRow("FPS", if (available && (snap?.fps ?: 0f) > 0f) "%.1f".format(snap?.fps) else "—", fpsHistory, Orange)
+        TimelineRow("温度", if (available) "%.1f°".format(snap?.thermal) else "—", tempHistory, Color(0xFFFFB27A))
+        TimelineRow("功耗", if (available) "%.2fW".format(snap?.power) else "—", powerHistory, Blue)
+        TimelineRow("GPU", if (available) "%.0fM".format(snap?.gpuFreq) else "—", gpuFreqHistory, Teal)
     }
 }
 
@@ -599,38 +683,16 @@ private fun TimelineRow(label: String, value: String, data: List<Float>, color: 
 }
 
 @Composable
-private fun ActivityStrip() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(18.dp), clip = false)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.9f))
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Text("后台活动", fontSize = 10.sp, color = Muted)
-        Spacer(Modifier.width(10.dp))
-        Text("12", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Ink)
-        Text(" 次唤醒", fontSize = 8.5.sp, color = Muted)
-        Spacer(Modifier.weight(1f))
-        Text("微信 · 淘宝 · 抖音", fontSize = 8.5.sp, color = Tertiary)
-    }
-}
-
-@Composable
 private fun Sparkline(
     points: List<Float>,
     color: Color,
     modifier: Modifier = Modifier,
-    minValue: Float? = null,
-    maxValue: Float? = null,
     fill: Boolean = false
 ) {
     Canvas(modifier) {
         if (points.size < 2) return@Canvas
-        val lo = minValue ?: (points.minOrNull() ?: 0f)
-        val hi = maxValue ?: (points.maxOrNull() ?: 1f)
+        val lo = points.minOrNull() ?: 0f
+        val hi = points.maxOrNull() ?: 1f
         val range = (hi - lo).let { if (it < 0.001f) 1f else it }
         val topPad = 2.dp.toPx()
         val bottomPad = 2.dp.toPx()
@@ -753,18 +815,8 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
                     )
                 }
             }
-            4 -> {
-                drawCircle(tint, radius = w * 0.16f, center = Offset(w / 2, h / 2), style = Stroke(stroke))
-                for (i in 0 until 8) {
-                    val angle = i * PI.toFloat() / 4f
-                    val x1 = w / 2 + cos(angle) * w * 0.27f
-                    val y1 = h / 2 + sin(angle) * h * 0.27f
-                    val x2 = w / 2 + cos(angle) * w * 0.38f
-                    val y2 = h / 2 + sin(angle) * h * 0.38f
-                    drawLine(tint, Offset(x1, y1), Offset(x2, y2), stroke * 0.9f, StrokeCap.Round)
-                }
-            }
         }
     }
 }
+
 

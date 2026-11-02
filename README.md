@@ -1,4 +1,4 @@
-# 颖控 · 安卓调度仪表台
+﻿# 颖控 · 安卓调度仪表台
 
 > 先看清，再动手。
 
@@ -29,13 +29,16 @@
 
 Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATURES.md)。参考官方站 [omarea.com](https://omarea.com/) 与其 8 张实机界面，只学功能与信息结构，不复制界面与素材。
 
-## Android APK（M2 壳）
+## Android APK（M2 真数据）
 
-第一个能装的 APK 已经构建出来，包名 `com.yingkong.app`，minSdk 26 / targetSdk 35，debug 签名。
+包名 `com.yingkong.app`，minSdk 26 / targetSdk 35，debug 签名。
 
 - 下载：[GitHub Releases](https://github.com/yingge-dev/yingkong/releases)
-- 当前范围：控制台（FPS、6 项指标、8 核负载、Top 进程、GPU 频率曲线、时间轴）
-- 数据仍是模拟值，**不会读取或修改系统**；底部导航暂未接页面
+- **零假数据**：所有数值来自 KernelSU root（`/proc/stat`、`cpufreq`、`kgsl`、`power_supply`、`thermal_zone`、`dumpsys cpuinfo`、`dumpsys gfxinfo framestats`）
+- FPS / Jank / 99% 帧时来自前台应用的真实帧时间戳；取不到就显示 `—`
+- 刷新率读取真实 Display 模式；温度、电压、电流、电池百分比都是真值
+- 不含登录、收费、绑机器；全部本地运行
+- 底部导航暂未接页面，当前只有控制台
 - 构建环境：JDK 17 + Android SDK 35 + Gradle 8.9，`android/` 为 Compose 工程
 - 构建命令（Windows）：
 
@@ -88,3 +91,5 @@ assets/         字体、图标
 ```
 
 License: TBD
+
+
