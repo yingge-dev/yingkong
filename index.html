@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F2F2F7">
-<meta name="description" content="颖控 · 安卓调度仪表台。可点原型 v0.1。">
-<title>颖控 · 可点原型</title>
+<meta name="description" content="颖控 · 安卓调度仪表台。可点原型 v0.3。">
+<title>颖控 · 可点原型 v0.3</title>
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -21,12 +21,14 @@
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L5 13h6l-1 9 8-11h-6z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
-  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.2 6.5l15.6 11M19.8 6.5L4.2 17.5"/></symbol>
-  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
-  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/></symbol>
-  <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
-  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-battery" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M21 10.5v3"/><path d="M6 12h6"/></symbol>
+  <symbol id="i-thermometer" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="i-screen" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
 </svg>
 
 <div class="device">
@@ -47,11 +49,12 @@
 
     <main class="content" id="content">
 
-      <!-- ============ 监控 ============ -->
+      <!-- ================= 控制台 ================= -->
       <section class="screen is-active" id="screen-monitor">
         <div class="title-block">
-          <div class="eyebrow">11 月 2 日 · 周日</div>
-          <div class="title-line"><h1>监控</h1><span class="pill live"><i></i>实时</span></div>
+          <div class="eyebrow">11 月 2 日 · 周日 · 21:04</div>
+          <div class="title-line"><h1>控制台</h1><span class="pill live"><i></i>LIVE</span></div>
+          <div class="statusline"><i></i>Shizuku 已连接<span class="sep">·</span>采样 1s<span class="sep">·</span><span class="ok">165Hz 已核验</span></div>
         </div>
 
         <section class="card hero">
@@ -70,30 +73,52 @@
           <div class="hero-foot">
             <span class="verified" id="verifyChip">165Hz 已核验</span>
             <span class="muted" id="session">本局 18:42</span>
-            <span class="delta" id="delta">+12.4 fps</span>
+            <span class="delta" id="delta">平均 117.4 · 最高 121.8</span>
           </div>
         </section>
 
-        <div class="grid-2">
-          <section class="card stat">
-            <div class="stat-top"><span class="label">机身温度</span><span class="label">CPU 核</span></div>
-            <div class="stat-val"><b id="temp">38.6</b><span>°C</span></div>
-            <div class="progress"><i id="tempBar" style="width:46%"></i></div>
-            <div class="stat-sub">正常 · 距墙 12°</div>
-          </section>
-          <section class="card stat">
-            <div class="stat-top"><span class="label">整机功耗</span><span class="label">5 分钟</span></div>
-            <div class="stat-val"><b id="power">5.82</b><span>W</span></div>
-            <div class="progress"><i id="powerBar" style="width:58%"></i></div>
-            <div class="stat-sub">电池 4.1W · 屏幕 1.7W</div>
-          </section>
+        <div class="console">
+          <div class="tile">
+            <div class="t-head"><em>CPU</em><span>8 核</span></div>
+            <div class="t-val"><b id="vCpu">42</b><span>%</span></div>
+            <div class="t-sub">1.9 GHz · 大核 2.6</div>
+            <div class="t-chart" id="cCpu"></div>
+          </div>
+          <div class="tile">
+            <div class="t-head"><em>GPU</em><span>Adreno</span></div>
+            <div class="t-val"><b id="vGpu">68</b><span>%</span></div>
+            <div class="t-sub">680 MHz · 负载 68%</div>
+            <div class="t-chart" id="cGpu"></div>
+          </div>
+          <div class="tile">
+            <div class="t-head"><em>内存</em><span>ZRAM 1.2G</span></div>
+            <div class="t-val"><b id="vRam">9.2</b><span>G</span></div>
+            <div class="t-sub">/ 16G · 缓存 3.1G</div>
+            <div class="t-chart" id="cRam"></div>
+          </div>
+          <div class="tile">
+            <div class="t-head"><em>温度</em><span>机身</span></div>
+            <div class="t-val"><b id="vTemp">38.6</b><span>°C</span></div>
+            <div class="t-sub">CPU 41.2 · 电池 34.1</div>
+            <div class="t-chart" id="cTemp"></div>
+          </div>
+          <div class="tile">
+            <div class="t-head"><em>功耗</em><span>整机</span></div>
+            <div class="t-val"><b id="vPower">5.82</b><span>W</span></div>
+            <div class="t-sub">电池 4.1 · 屏幕 1.7</div>
+            <div class="t-chart" id="cPower"></div>
+          </div>
+          <div class="tile">
+            <div class="t-head"><em>电池</em><span>充电 34W</span></div>
+            <div class="t-val"><b id="vBatt">82</b><span>%</span></div>
+            <div class="t-sub">12.4V · 2.7A · 28min→80%</div>
+            <div class="t-chart" id="cBatt"></div>
+          </div>
         </div>
 
-        <section class="card load">
-          <div class="card-head"><span class="label">负载</span><span class="hint">骁龙 8 Elite · 16G</span></div>
-          <div class="load-row"><span>CPU</span><div class="track"><i style="width:42%;background:#AF52DE"></i></div><b id="cpuVal">42%</b></div>
-          <div class="load-row"><span>GPU</span><div class="track"><i style="width:68%;background:#0A84FF"></i></div><b id="gpuVal">68%</b></div>
-          <div class="load-row"><span>内存</span><div class="track"><i style="width:58%;background:#30B0C7"></i></div><b id="ramVal">9.2G</b></div>
+        <section class="card cores">
+          <div class="card-head"><span class="label">CPU 核心</span><span class="hint">8 核 · 2 + 6 · 最高 2.6GHz</span></div>
+          <div class="core-grid" id="coreGrid"></div>
         </section>
 
         <section class="card timeline">
@@ -114,7 +139,7 @@
         </section>
       </section>
 
-      <!-- ============ 记录 ============ -->
+      <!-- ================= 记录 ================= -->
       <section class="screen" id="screen-records">
         <div class="title-block">
           <div class="eyebrow">11 月 2 日 · 本局</div>
@@ -171,47 +196,123 @@
         </button>
       </section>
 
-      <!-- ============ 调优 ============ -->
-      <section class="screen" id="screen-tune">
+      <!-- ================= 工具 ================= -->
+      <section class="screen" id="screen-tools">
         <div class="title-block">
-          <div class="eyebrow">配方 · 自动执行</div>
-          <div class="title-line"><h1>调优</h1><span class="pill"><i></i>运行中</span></div>
+          <div class="eyebrow">18 个模块 · 4 项生效</div>
+          <div class="title-line"><h1>工具</h1><span class="pill">专业模式</span></div>
         </div>
 
-        <section class="card recipe">
-          <div class="recipe-head">
-            <span class="recipe-icon"><svg><use href="#i-bolt"/></svg></span>
-            <span class="recipe-title"><b>游戏启动</b><em>原神 · 王者荣耀 · 和平精英</em></span>
-            <button class="switch is-on" id="recipeSwitch" aria-label="启用配方"></button>
-          </div>
-          <div class="recipe-row">
-            <span class="row-label">性能档</span>
-            <div class="segmented" id="perfSeg">
-              <button>省电</button><button>均衡</button><button>性能</button><button class="is-on">电竞</button>
-            </div>
-          </div>
-          <button class="recipe-row" id="refreshRow">
-            <span class="row-label">刷新率</span>
-            <span class="row-value"><b id="refreshValue">面板最高</b><em id="refreshSub">当前 165Hz</em></span>
+        <section class="card tool-card">
+          <div class="card-head"><span class="label">调优</span><span class="hint">写前备份</span></div>
+          <button class="tool-row" data-sheet="perf">
+            <span class="tool-ico"><svg><use href="#i-sliders"/></svg></span>
+            <span class="tool-text"><b>性能档</b><em>CPU 调度 · GPU · IO</em></span>
+            <span class="tool-val" id="perfVal">电竞</span>
             <svg class="chev"><use href="#i-chev"/></svg>
           </button>
-          <div class="recipe-row">
-            <span class="row-label">充电上限</span>
-            <span class="row-value"><b>80%</b><em>到点自动断充</em></span>
-            <button class="switch is-on" aria-label="充电上限"></button>
-          </div>
+          <button class="tool-row" id="refreshRow">
+            <span class="tool-ico"><svg><use href="#i-monitor"/></svg></span>
+            <span class="tool-text"><b>刷新率</b><em id="refreshSub">面板最高 · 当前 165Hz</em></span>
+            <span class="tool-val" id="refreshValue">面板最高</span>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-sheet="charge">
+            <span class="tool-ico"><svg><use href="#i-battery"/></svg></span>
+            <span class="tool-text"><b>充电上限</b><em>到点自动断充</em></span>
+            <span class="tool-val" id="chargeVal">80%</span>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-sheet="thermal">
+            <span class="tool-ico"><svg><use href="#i-thermometer"/></svg></span>
+            <span class="tool-text"><b>温控墙</b><em>触发后降频 · 降温</em></span>
+            <span class="tool-val" id="thermalVal">46°C</span>
+            <svg class="chev"><use href="#i-chev"/></svg>
+          </button>
         </section>
 
-        <section class="card modes">
-          <div class="card-head"><span class="label">本机真实档位</span><span class="hint">5 档 · 自动识别</span></div>
-          <div class="mode-chips" id="modeChips">
-            <button data-mode="60">60</button>
-            <button data-mode="90">90</button>
-            <button data-mode="120">120</button>
-            <button data-mode="144">144</button>
-            <button data-mode="165" class="is-on">165</button>
-          </div>
-          <p class="note"><b>配方存语义，不存数字。</b>选「面板最高」时，换机、换面板都会自动跟着走；165Hz 若绑定分辨率会提前标注。</p>
+        <section class="card tool-card modules">
+          <div class="card-head"><span class="label">全部模块</span><span class="hint">18 项 · 对标 Scene</span></div>
+          <button class="tool-row" data-module="fps">
+            <span class="tool-ico"><svg><use href="#i-chart"/></svg></span>
+            <span class="tool-text"><b>帧率记录</b><em>按应用 / 场景归档</em></span>
+            <span class="tool-val">3 场</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="cpu">
+            <span class="tool-ico"><svg><use href="#i-sliders"/></svg></span>
+            <span class="tool-text"><b>CPU 控制</b><em>2 + 6 核 · 调频 / 调度器</em></span>
+            <span class="tool-val">2.6GHz</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="swap">
+            <span class="tool-ico"><svg><use href="#i-grid"/></svg></span>
+            <span class="tool-text"><b>SWAP 设置</b><em>ZRAM 大小 / 压缩算法</em></span>
+            <span class="tool-val">1.2G</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="process">
+            <span class="tool-ico"><svg><use href="#i-list"/></svg></span>
+            <span class="tool-text"><b>进程管理</b><em>按 CPU / 内存排序</em></span>
+            <span class="tool-val">126 个</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="activity">
+            <span class="tool-ico"><svg><use href="#i-monitor"/></svg></span>
+            <span class="tool-text"><b>活动与服务</b><em>常驻服务 / 广播 / 闹钟</em></span>
+            <span class="tool-val">12 常驻</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="bias">
+            <span class="tool-ico"><svg><use href="#i-gear"/></svg></span>
+            <span class="tool-text"><b>应用偏见</b><em>按应用限制 CPU 亲和 / 调度</em></span>
+            <span class="tool-val">8 个</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="powerstat">
+            <span class="tool-ico"><svg><use href="#i-bolt"/></svg></span>
+            <span class="tool-text"><b>耗电统计</b><em>前台 / 后台 · 使用场景</em></span>
+            <span class="tool-val">今日 38%</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="chargestat">
+            <span class="tool-ico"><svg><use href="#i-battery"/></svg></span>
+            <span class="tool-text"><b>充电统计</b><em>功率曲线 / 协议 / 温度</em></span>
+            <span class="tool-val">34W</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="magisk">
+            <span class="tool-ico"><svg><use href="#i-shield"/></svg></span>
+            <span class="tool-text"><b>Magisk 模块</b><em>启用 / 禁用 / 卸载</em></span>
+            <span class="tool-val">12 个</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="addon">
+            <span class="tool-ico"><svg><use href="#i-grid"/></svg></span>
+            <span class="tool-text"><b>附加模块</b><em>附加功能与脚本</em></span>
+            <span class="tool-val">4 个</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="orms">
+            <span class="tool-ico"><svg><use href="#i-code"/></svg></span>
+            <span class="tool-text"><b>ORMS 配置</b><em>分辨率 / 渲染倍率</em></span>
+            <span class="tool-val">未启用</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="detect">
+            <span class="tool-ico"><svg><use href="#i-screen"/></svg></span>
+            <span class="tool-text"><b>检测工具</b><em>屏幕 / 触控 / 传感器</em></span>
+            <span class="tool-val">未运行</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="backup">
+            <span class="tool-ico"><svg><use href="#i-export"/></svg></span>
+            <span class="tool-text"><b>备份还原</b><em>节点 / 配置 / 模块</em></span>
+            <span class="tool-val">2 个</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="nodes">
+            <span class="tool-ico"><svg><use href="#i-code"/></svg></span>
+            <span class="tool-text"><b>节点编辑</b><em>自定义 sysfs / proc 路径</em></span>
+            <span class="tool-val">18 项</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="auto">
+            <span class="tool-ico"><svg><use href="#i-gear"/></svg></span>
+            <span class="tool-text"><b>自动化</b><em>按应用 / 温度 / 电量触发</em></span>
+            <span class="tool-val">2 条</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
+          <button class="tool-row" data-module="export">
+            <span class="tool-ico"><svg><use href="#i-export"/></svg></span>
+            <span class="tool-text"><b>导出与分享</b><em>CSV / JSON / 对比长图</em></span>
+            <span class="tool-val">可导出</span><svg class="chev"><use href="#i-chev"/></svg>
+          </button>
         </section>
 
         <section class="card list-card">
@@ -219,23 +320,9 @@
           <div class="check-row"><span class="check-dot"><svg><use href="#i-check"/></svg></span><span>写入后回读核验</span><em>已通过</em></div>
           <div class="check-row"><span class="check-dot"><svg><use href="#i-check"/></svg></span><span>一键恢复出厂策略</span><em>可撤回</em></div>
         </section>
-
-        <div class="list-title"><span>最近生效</span><button class="link" data-toast="全部记录（原型）">全部</button></div>
-        <section class="card session-list">
-          <div class="session-row">
-            <span class="session-icon">原</span>
-            <span class="session-text"><b>原神</b><em>21:03 · 电竞 + 面板最高</em></span>
-            <b class="session-val">118.6</b>
-          </div>
-          <div class="session-row">
-            <span class="session-icon">王</span>
-            <span class="session-text"><b>王者荣耀</b><em>20:12 · 电竞 + 120Hz</em></span>
-            <b class="session-val">120.0</b>
-          </div>
-        </section>
       </section>
 
-      <!-- ============ 应用 ============ -->
+      <!-- ================= 应用 ================= -->
       <section class="screen" id="screen-apps">
         <div class="title-block">
           <div class="eyebrow">34 个应用 · 8 个受限</div>
@@ -256,10 +343,10 @@
         <div class="app-list" id="appList"></div>
       </section>
 
-      <!-- ============ 设置 ============ -->
+      <!-- ================= 设置 ================= -->
       <section class="screen" id="screen-settings">
         <div class="title-block">
-          <div class="eyebrow">颖控 · v0.1.0 原型</div>
+          <div class="eyebrow">颖控 · v0.3.0 原型</div>
           <div class="title-line"><h1>设置</h1></div>
         </div>
 
@@ -297,8 +384,8 @@
             <span class="setting-text"><b>救援模式</b><em>还原所有写过的节点</em></span>
             <svg class="chev"><use href="#i-chev"/></svg>
           </button>
-          <button class="setting-row" data-toast="颖控 v0.1.0 · 原型构建">
-            <span class="setting-text"><b>关于颖控</b><em>v0.1.0 原型 · K90 至尊版</em></span>
+          <button class="setting-row" data-toast="颖控 v0.3.0 · 原型构建">
+            <span class="setting-text"><b>关于颖控</b><em>v0.3.0 原型 · K90 至尊版</em></span>
             <svg class="chev"><use href="#i-chev"/></svg>
           </button>
           <button class="setting-row" data-toast="设备信息（原型）">
@@ -317,9 +404,9 @@
     </main>
 
     <nav class="tabbar" aria-label="主导航">
-      <button class="tab is-on" data-tab="monitor"><svg><use href="#i-monitor"/></svg><span>监控</span></button>
+      <button class="tab is-on" data-tab="monitor"><svg><use href="#i-monitor"/></svg><span>控制台</span></button>
       <button class="tab" data-tab="records"><svg><use href="#i-chart"/></svg><span>记录</span></button>
-      <button class="tab" data-tab="tune"><svg><use href="#i-sliders"/></svg><span>调优</span></button>
+      <button class="tab" data-tab="tools"><svg><use href="#i-sliders"/></svg><span>工具</span></button>
       <button class="tab" data-tab="apps"><svg><use href="#i-grid"/></svg><span>应用</span></button>
       <button class="tab" data-tab="settings"><svg><use href="#i-gear"/></svg><span>设置</span></button>
     </nav>
