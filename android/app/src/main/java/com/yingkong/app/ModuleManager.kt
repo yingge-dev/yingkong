@@ -1,4 +1,4 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import android.content.Context
 import java.io.File
@@ -78,7 +78,7 @@ object ModuleManager {
               echo NO_INSTALLER
               exit 1
             fi
-            chmod 755 $PATH/bin/yingkong-daemon $UPDATE_PATH/bin/yingkong-daemon 2>/dev/null
+            chmod 755 $PATH/bin/* $UPDATE_PATH/bin/* 2>/dev/null
             if [ -f $PATH/service.sh ]; then sh $PATH/service.sh; fi
             if [ -f $UPDATE_PATH/service.sh ]; then sh $UPDATE_PATH/service.sh; fi
             echo INSTALL_DONE
@@ -95,3 +95,4 @@ object ModuleManager {
         return RootShell.runRoot(cmd, 20) ?: "root 无响应"
     }
 }
+

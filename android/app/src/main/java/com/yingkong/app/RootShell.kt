@@ -2,6 +2,7 @@
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+import org.json.JSONObject
 import kotlin.math.abs
 
 data class ProcRow(val name: String, val cpu: Float, val memMb: Float)
@@ -55,6 +56,8 @@ object RootShell {
         cat /sys/class/thermal/thermal_zone*/type
         echo ===THERMTEMP
         cat /sys/class/thermal/thermal_zone*/temp
+        echo ===NATIVE
+        cat /data/adb/yingkong/status 2>/dev/null
     """.trimIndent()
 
     private val prevTotal = HashMap<String, Long>()
@@ -91,25 +94,25 @@ object RootShell {
             totals[parts[0]] = nums.take(7).sum()
             idles[parts[0]] = nums[3] + (nums.getOrNull(4) ?: 0L)
         }
-        val cpu = loadOf("cpu", totals["cpu"], idles["cpu"])
-        val cores = (0 until 8).map { i -> loadOf("cpu$i", totals["cpu$i"], idles["cpu$i"]) }
+        var cpu = loadOf("cpu", totals["cpu"], idles["cpu"])
+        var cores = (0 until 8).map { i -> loadOf("cpu$i", totals["cpu$i"], idles["cpu$i"]) }
 
         // Frequencies
         val maxMhz = nums(sections["MAX"]).map { it / 1000f }
 
         // GPU
         val gpuLines = sections["GPU"].orEmpty()
-        val gpu = Regex("\\d+").find(gpuLines.getOrNull(0).orEmpty())?.value?.toFloatOrNull() ?: 0f
-        val gpuFreq = gpuLines.getOrNull(1)?.trim()?.toFloatOrNull() ?: 0f
+        var gpu = Regex("\\d+").find(gpuLines.getOrNull(0).orEmpty())?.value?.toFloatOrNull() ?: 0f
+        var gpuFreq = gpuLines.getOrNull(1)?.trim()?.toFloatOrNull() ?: 0f
 
         // Battery
         val battValues = nums(sections["BATT"])
-        val voltage = (battValues.getOrNull(0) ?: 0L) / 1_000_000f
-        val currentA = (battValues.getOrNull(1) ?: 0L) / 1_000_000f
-        val currentMa = currentA * 1000f
-        val batteryTemp = toCelsius(battValues.getOrNull(2) ?: 0L)
-        val batt = (battValues.getOrNull(3) ?: 0L).toFloat()
-        val power = abs(voltage * currentA)
+        var voltage = (battValues.getOrNull(0) ?: 0L) / 1_000_000f
+        var currentA = (battValues.getOrNull(1) ?: 0L) / 1_000_000f
+        var currentMa = currentA * 1000f
+        var batteryTemp = toCelsius(battValues.getOrNull(2) ?: 0L)
+        var batt = (battValues.getOrNull(3) ?: 0L).toFloat()
+        var power = abs(voltage * currentA)
 
         // Thermal
         val types = sections["THERM"].orEmpty().map { it.trim() }
@@ -120,7 +123,7 @@ object RootShell {
                 type.contains("soc", true) || type.contains("gpu", true)
             if (ok) toCelsius(rawTemp) else null
         }
-        val thermal = thermalCandidates.maxOrNull() ?: batteryTemp
+        var thermal = thermalCandidates.maxOrNull() ?: batteryTemp
 
         // Memory
         var totalKb = 0L
@@ -131,8 +134,39 @@ object RootShell {
                 line.startsWith("MemAvailable:") -> availKb = firstLong(line) ?: 0L
             }
         }
-        val ramTotal = totalKb / 1_048_576f
-        val ramUsed = (totalKb - availKb).coerceAtLeast(0L) / 1_048_576f
+        var ramTotal = totalKb / 1_048_576f
+        var ramUsed = (totalKb - availKb).coerceAtLeast(0L) / 1_048_576f
+
+        val nativeStatus = sections["NATIVE"].orEmpty()
+            .firstOrNull { it.trim().startsWith("{") }
+            ?.let {
+                try {
+                    JSONObject(it.trim())
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        if (nativeStatus != null &&
+            abs(System.currentTimeMillis() - nativeStatus.optLong("ts")) < 5000
+        ) {
+            cpu = nativeStatus.optDouble("cpu", cpu.toDouble()).toFloat()
+            nativeStatus.optJSONArray("cores")?.let { array ->
+                cores = (0 until array.length()).map { index -> array.optDouble(index, 0.0).toFloat() }
+            }
+            gpu = nativeStatus.optDouble("gpu", gpu.toDouble()).toFloat()
+            gpuFreq = nativeStatus.optDouble("gpu_mhz", gpuFreq.toDouble()).toFloat()
+            ramTotal = nativeStatus.optDouble("mem_total_gb", ramTotal.toDouble()).toFloat()
+            val nativeTotal = ramTotal
+            val nativeAvail = nativeStatus.optDouble("mem_avail_gb", 0.0).toFloat()
+            if (nativeTotal > 0f) ramUsed = (nativeTotal - nativeAvail).coerceAtLeast(0f)
+            thermal = nativeStatus.optDouble("temp", thermal.toDouble()).toFloat()
+            batteryTemp = nativeStatus.optDouble("bat_temp", batteryTemp.toDouble()).toFloat()
+            voltage = nativeStatus.optDouble("voltage", voltage.toDouble()).toFloat()
+            currentMa = nativeStatus.optDouble("current_ma", currentMa.toDouble()).toFloat()
+            currentA = currentMa / 1000f
+            power = nativeStatus.optDouble("power", power.toDouble()).toFloat()
+            batt = nativeStatus.optDouble("battery", batt.toDouble()).toFloat()
+        }
 
         // RSS map from ps
         val rssByPid = HashMap<Int, Float>()
@@ -383,6 +417,7 @@ object RootShell {
         }
     }
 }
+
 
 
 

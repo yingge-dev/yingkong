@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+﻿#define _GNU_SOURCE
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -20,7 +20,7 @@
 #define MAX_CORES 16
 #define MAX_FREQ 16
 #define MAX_THERMAL 64
-#define VERSION "0.2.0"
+#define VERSION "0.3.0"
 
 typedef struct {
     unsigned long long total;
@@ -337,3 +337,4 @@ int main(void) {
     unlink(PID_PATH);
     return 0;
 }
+
