@@ -43,6 +43,7 @@ class RecorderService : Service() {
         const val ACTION_STOP = "com.yingkong.app.action.STOP_RECORD"
         const val ACTION_SHOW_OVERLAY = "com.yingkong.app.action.SHOW_OVERLAY"
         const val ACTION_HIDE_OVERLAY = "com.yingkong.app.action.HIDE_OVERLAY"
+        const val ACTION_STOP_SERVICE = "com.yingkong.app.action.STOP_SERVICE"
         const val PREFS = "yingkong"
         const val KEY_OVERLAY = "overlay_enabled"
         private const val CHANNEL = "recording"
@@ -74,12 +75,24 @@ class RecorderService : Service() {
             ACTION_STOP -> stopRecording()
             ACTION_SHOW_OVERLAY -> enableOverlay()
             ACTION_HIDE_OVERLAY -> disableOverlay()
-            else -> if (!RecorderStore.recording.value && !overlayEnabled) {
+            ACTION_STOP_SERVICE -> {
+                stopRecording()
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }
+            else -> {
+                if (overlayEnabled) {
+                    startInForeground("悬浮窗已隐藏 · 通知栏可显示")
+                    showOverlay()
+                    updateNotification()
+                } else if (!RecorderStore.recording.value) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+            }
         }
-        return START_NOT_STICKY
+        return if (overlayEnabled || RecorderStore.recording.value) START_STICKY else START_NOT_STICKY
     }
 
     private fun enableOverlay() {
@@ -97,11 +110,9 @@ class RecorderService : Service() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_OVERLAY, false).apply()
         hideOverlay()
         if (!RecorderStore.recording.value) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        } else {
-            updateNotification()
+            startInForeground("悬浮窗已隐藏 · 通知栏可显示")
         }
+        updateNotification()
     }
 
     private fun startRecording() {
@@ -169,8 +180,10 @@ class RecorderService : Service() {
             val name = RecorderStore.targetName.value ?: "前台应用"
             val duration = formatDuration(System.currentTimeMillis() - RecorderStore.startedAt)
             "$name · $duration"
-        } else {
+        } else if (overlayEnabled) {
             "悬浮按钮已开启 · 点按开始记录"
+        } else {
+            "悬浮窗已隐藏 · 通知栏可显示"
         }
         try {
             NotificationManagerCompat.from(this).notify(NOTIF_ID, buildNotification(text))
@@ -189,7 +202,13 @@ class RecorderService : Service() {
         )
         val builder = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_record)
-            .setContentTitle(if (RecorderStore.recording.value) "颖控正在记录" else "颖控悬浮按钮")
+            .setContentTitle(
+                when {
+                    RecorderStore.recording.value -> "颖控正在记录"
+                    overlayEnabled -> "颖控悬浮按钮"
+                    else -> "颖控已隐藏"
+                }
+            )
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)
@@ -213,6 +232,23 @@ class RecorderService : Service() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             builder.addAction(0, "隐藏悬浮", hide)
+        } else {
+            val show = PendingIntent.getService(
+                this,
+                4,
+                Intent(this, RecorderService::class.java).setAction(ACTION_SHOW_OVERLAY),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            builder.addAction(0, "显示悬浮", show)
+        }
+        if (!RecorderStore.recording.value) {
+            val close = PendingIntent.getService(
+                this,
+                5,
+                Intent(this, RecorderService::class.java).setAction(ACTION_STOP_SERVICE),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            builder.addAction(0, "关闭", close)
         }
         return builder.build()
     }
@@ -400,6 +436,18 @@ class RecorderService : Service() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (overlayEnabled) {
+            mainHandler.post {
+                showOverlay()
+                updateNotification()
+            }
+        } else if (!RecorderStore.recording.value) {
+            stopSelf()
+        }
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         job?.cancel()

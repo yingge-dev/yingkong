@@ -12,8 +12,8 @@ android {
         applicationId = "com.yingkong.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.17.0-m2"
+        versionCode = 18
+        versionName = "0.18.0-m2"
     }
 
     buildTypes {
@@ -52,6 +52,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
 
 
 

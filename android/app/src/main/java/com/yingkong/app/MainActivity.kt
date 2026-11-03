@@ -1,8 +1,11 @@
 ﻿package com.yingkong.app
 
+import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.RepeatMode
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -89,6 +93,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                moveTaskToBack(true)
+            }
+        })
         setContent { YingKongApp() }
     }
 }
@@ -131,7 +140,16 @@ private fun YingKongApp() {
 
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) { RecorderStore.load(context) }
+    LaunchedEffect(Unit) {
+        RecorderStore.load(context)
+        val prefs = context.getSharedPreferences(RecorderService.PREFS, android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean(RecorderService.KEY_OVERLAY, false) && Settings.canDrawOverlays(context)) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+            )
+        }
+    }
 
     val appLabel = remember(snap?.fgPackage) {
         val pkg = snap?.fgPackage
@@ -842,6 +860,7 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
         }
     }
 }
+
 
 
 
