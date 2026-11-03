@@ -1,4 +1,4 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -53,6 +53,7 @@ class RecorderService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var job: Job? = null
+    private var idleJob: Job? = null
     private var homePackage: String? = null
 
     private var overlayEnabled = false
@@ -100,6 +101,7 @@ class RecorderService : Service() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_OVERLAY, true).apply()
         if (!RecorderStore.recording.value) {
             startInForeground("悬浮按钮已开启 · 点按开始记录")
+            startIdleMonitoring()
         }
         showOverlay()
         updateNotification()
@@ -109,6 +111,8 @@ class RecorderService : Service() {
         overlayEnabled = false
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_OVERLAY, false).apply()
         hideOverlay()
+        idleJob?.cancel()
+        idleJob = null
         if (!RecorderStore.recording.value) {
             startInForeground("悬浮窗已隐藏 · 通知栏可显示")
         }
@@ -118,6 +122,8 @@ class RecorderService : Service() {
     private fun startRecording() {
         if (RecorderStore.recording.value) return
         RecorderStore.begin()
+        idleJob?.cancel()
+        idleJob = null
         RootShell.enableFrameStats()
         startInForeground("等待前台应用…")
         showOverlay()
@@ -126,6 +132,7 @@ class RecorderService : Service() {
             while (isActive && RecorderStore.recording.value) {
                 val snapshot = withContext(Dispatchers.IO) { RootShell.snapshot() }
                 if (snapshot != null) {
+                    RecorderStore.latest.value = snapshot
                     val pkg = snapshot.fgPackage
                     if (pkg != null && isTargetable(pkg)) {
                         if (RecorderStore.targetPkg.value == null) {
@@ -154,10 +161,27 @@ class RecorderService : Service() {
         updateOverlay()
         if (overlayEnabled) {
             startInForeground("悬浮按钮已开启 · 点按开始记录")
+            startIdleMonitoring()
             updateNotification()
         } else {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
+        }
+    }
+
+    private fun startIdleMonitoring() {
+        if (!overlayEnabled || RecorderStore.recording.value) return
+        if (idleJob?.isActive == true) return
+        idleJob = scope.launch {
+            while (isActive && overlayEnabled && !RecorderStore.recording.value) {
+                val snapshot = withContext(Dispatchers.IO) { RootShell.snapshot() }
+                if (snapshot != null) {
+                    RecorderStore.latest.value = snapshot
+                    updateNotification()
+                    updateOverlay()
+                }
+                delay(2000)
+            }
         }
     }
 
@@ -175,20 +199,45 @@ class RecorderService : Service() {
     }
 
     private fun updateNotification() {
-        val recording = RecorderStore.recording.value
-        val text = if (recording) {
-            val name = RecorderStore.targetName.value ?: "前台应用"
-            val duration = formatDuration(System.currentTimeMillis() - RecorderStore.startedAt)
-            "$name · $duration"
-        } else if (overlayEnabled) {
-            "悬浮按钮已开启 · 点按开始记录"
-        } else {
-            "悬浮窗已隐藏 · 通知栏可显示"
-        }
+        val text = metricsLine()
         try {
             NotificationManagerCompat.from(this).notify(NOTIF_ID, buildNotification(text))
         } catch (_: SecurityException) {
         }
+    }
+
+    private fun metricsLine(): String {
+        val snapshot = RecorderStore.latest.value ?: return "正在读取系统数据…"
+        return "FPS %.0f · CPU %.0f%% · %.1f°C · %.2fW".format(
+            snapshot.fps, snapshot.cpu, snapshot.thermal, snapshot.power
+        )
+    }
+
+    private fun bigText(): String {
+        val builder = StringBuilder()
+        val recording = RecorderStore.recording.value
+        if (recording) {
+            val name = RecorderStore.targetName.value ?: "前台应用"
+            val duration = formatDuration(System.currentTimeMillis() - RecorderStore.startedAt)
+            builder.append(name).append(" · ").append(duration).append('\n')
+        }
+        val snapshot = RecorderStore.latest.value
+        if (snapshot != null) {
+            builder.append("FPS %.1f · Jank %.1f%%".format(snapshot.fps, snapshot.jankPct)).append('\n')
+            builder.append("CPU %.0f%% · GPU %.0f%%".format(snapshot.cpu, snapshot.gpu)).append('\n')
+            builder.append("温度 %.1f°C · 功耗 %.2fW".format(snapshot.thermal, snapshot.power)).append('\n')
+            builder.append("电池 %.0f%% · %.2fV · %.0fmA".format(
+                snapshot.batt, snapshot.voltage, snapshot.currentMa
+            ))
+        } else {
+            builder.append("正在读取系统数据…")
+        }
+        if (!recording) {
+            builder.append('\n').append(
+                if (overlayEnabled) "点悬浮按钮开始记录" else "悬浮窗已隐藏，点通知栏可重新显示"
+            )
+        }
+        return builder.toString()
     }
 
     private fun buildNotification(text: String): Notification {
@@ -210,6 +259,7 @@ class RecorderService : Service() {
                 }
             )
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText()))
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -262,10 +312,11 @@ class RecorderService : Service() {
             }
             if (!Settings.canDrawOverlays(this)) return@post
             val manager = getSystemService(WINDOW_SERVICE) as WindowManager
-            val size = dp(64)
+            val width = dp(112)
+            val height = dp(58)
             val params = WindowManager.LayoutParams(
-                size,
-                size,
+                width,
+                height,
                 if (Build.VERSION.SDK_INT >= 26) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
@@ -285,6 +336,7 @@ class RecorderService : Service() {
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 textSize = 10f
+                setPadding(dp(8), dp(4), dp(8), dp(4))
                 elevation = dp(6).toFloat()
                 background = overlayBackground(false)
                 isClickable = true
@@ -317,11 +369,17 @@ class RecorderService : Service() {
         mainHandler.post {
             val view = overlayView ?: return@post
             val recording = RecorderStore.recording.value
+            val snapshot = RecorderStore.latest.value
             view.text = if (recording) {
-                val fps = RecorderStore.samples.lastOrNull()?.fps
-                "■\n${fps?.toInt() ?: "--"}"
+                val fps = snapshot?.fps ?: 0f
+                val temp = snapshot?.thermal ?: 0f
+                val power = snapshot?.power ?: 0f
+                "%.0f FPS\n%.0f°C %.2fW".format(fps, temp, power)
             } else {
-                "●\n记录"
+                val fps = snapshot?.fps ?: 0f
+                val temp = snapshot?.thermal ?: 0f
+                val batt = snapshot?.batt ?: 0f
+                "%.0f FPS\n%.0f°C %.0f%%".format(fps, temp, batt)
             }
             view.background = overlayBackground(recording)
         }
@@ -329,7 +387,8 @@ class RecorderService : Service() {
 
     private fun overlayBackground(recording: Boolean): GradientDrawable {
         return GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(16).toFloat()
             setColor(if (recording) 0xF2FF6900.toInt() else 0xE61D1D1F.toInt())
             setStroke(dp(2), if (recording) Color.WHITE else 0xFFFF6900.toInt())
         }
@@ -451,11 +510,14 @@ class RecorderService : Service() {
 
     override fun onDestroy() {
         job?.cancel()
+        idleJob?.cancel()
         hideOverlay()
         scope.cancel()
         super.onDestroy()
     }
 }
+
+
 
 
 

@@ -40,6 +40,7 @@ object RecorderStore {
     val targetPkg = mutableStateOf<String?>(null)
     val targetName = mutableStateOf<String?>(null)
     val samples = mutableStateListOf<RecSample>()
+    val latest = mutableStateOf<Snapshot?>(null)
     val sessions = mutableStateListOf<RecSession>()
 
     var startedAt: Long = 0L
@@ -214,4 +215,5 @@ object RecorderStore {
             .apply()
     }
 }
+
 
