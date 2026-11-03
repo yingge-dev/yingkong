@@ -1,4 +1,4 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import android.os.ParcelFileDescriptor
 import android.util.Log
@@ -9,6 +9,13 @@ import org.json.JSONObject
 import kotlin.math.abs
 
 data class ProcRow(val name: String, val cpu: Float, val memMb: Float)
+
+data class FrameStats(
+    val fps: Float,
+    val jankPct: Float,
+    val frames: Long,
+    val p99: Float
+)
 
 data class Snapshot(
     val cpu: Float,
@@ -387,6 +394,78 @@ object RootShell {
 
     private fun firstLong(line: String): Long? =
         Regex("\\d+").find(line)?.value?.toLongOrNull()
+
+    fun enableFrameStats() {
+        runRoot("dumpsys SurfaceFlinger --timestats -enable; dumpsys SurfaceFlinger --timestats -clear", 10)
+    }
+
+    fun captureFrameStats(pkg: String): FrameStats? {
+        val out = runRoot("dumpsys SurfaceFlinger --timestats -dump", 12) ?: return null
+        val layers = mutableListOf<StatLayer>()
+        var current: StatLayer? = null
+        for (line in out.lineSequence()) {
+            if (line.startsWith("layerName = ")) {
+                current?.let { layers.add(it) }
+                current = StatLayer(line.substringAfter("layerName = ").trim())
+                continue
+            }
+            val layer = current ?: continue
+            when {
+                line.startsWith("totalTimelineFrames = ") ->
+                    layer.timeline = line.substringAfter("totalTimelineFrames = ").trim().toLongOrNull() ?: 0L
+                line.startsWith("jankyFrames = ") ->
+                    layer.jank = line.substringAfter("jankyFrames = ").trim().toLongOrNull() ?: 0L
+                line.startsWith("averageFPS = ") ->
+                    layer.fps = line.substringAfter("averageFPS = ").trim().toFloatOrNull() ?: 0f
+                line.contains("present2present histogram") -> layer.wantHist = true
+                layer.wantHist && line.contains("ms=") -> {
+                    Regex("""(\d+)ms=(\d+)""").findAll(line).forEach { match ->
+                        val key = match.groupValues[1].toIntOrNull() ?: return@forEach
+                        val value = match.groupValues[2].toLongOrNull() ?: return@forEach
+                        layer.hist[key] = value
+                    }
+                    layer.wantHist = false
+                }
+            }
+        }
+        current?.let { layers.add(it) }
+        val target = layers
+            .filter { it.name.contains(pkg) && it.timeline > 10 }
+            .maxByOrNull {
+                when {
+                    it.name.contains("SurfaceView") -> 3
+                    !it.name.startsWith("VRI-") -> 2
+                    else -> 1
+                }
+            } ?: return null
+        val jankPct = if (target.timeline > 0) target.jank * 100f / target.timeline else 0f
+        return FrameStats(
+            fps = target.fps,
+            jankPct = jankPct,
+            frames = target.timeline,
+            p99 = histogramP99(target.hist)
+        )
+    }
+
+    private class StatLayer(
+        val name: String,
+        var timeline: Long = 0L,
+        var jank: Long = 0L,
+        var fps: Float = 0f,
+        var hist: HashMap<Int, Long> = HashMap(),
+        var wantHist: Boolean = false
+    )
+
+    private fun histogramP99(histogram: HashMap<Int, Long>): Float {
+        val total = histogram.values.sum()
+        if (total <= 0) return 0f
+        var seen = 0L
+        for (key in histogram.keys.sorted()) {
+            seen += histogram[key] ?: 0L
+            if (seen >= total * 0.99) return key.toFloat()
+        }
+        return histogram.keys.maxOrNull()?.toFloat() ?: 0f
+    }
 
     fun runRoot(cmd: String, timeoutSeconds: Long = 8): String? = execSu(cmd, timeoutSeconds)
 

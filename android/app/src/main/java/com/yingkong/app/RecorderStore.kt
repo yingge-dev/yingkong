@@ -1,4 +1,4 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
@@ -30,7 +30,9 @@ data class RecSession(
     val powerAvg: Float,
     val tempMax: Float,
     val samples: Int,
-    val points: List<RecSample> = emptyList()
+    val points: List<RecSample> = emptyList(),
+    val timelineFrames: Long = 0L,
+    val timelineJank: Float = 0f
 )
 
 object RecorderStore {
@@ -77,7 +79,7 @@ object RecorderStore {
         if (samples.size > 7200) samples.removeAt(0)
     }
 
-    fun finish(context: Context) {
+    fun finish(context: Context, frameStats: FrameStats? = null) {
         if (!recording.value) return
         val pkg = targetPkg.value
         if (pkg != null && samples.isNotEmpty()) {
@@ -98,11 +100,13 @@ object RecorderStore {
                 fpsMin = fpsList.minOrNull() ?: 0f,
                 fpsLow = fpsList.sorted().take(lowCount).average().toFloat(),
                 fpsMax = fpsList.maxOrNull() ?: 0f,
-                jankAvg = summary.map { it.jank }.average().toFloat(),
+                jankAvg = if (frameStats != null && frameStats.frames > 10) frameStats.jankPct else summary.map { it.jank }.average().toFloat(),
                 powerAvg = summary.map { it.power }.average().toFloat(),
                 tempMax = summary.maxOfOrNull { it.temp } ?: 0f,
                 samples = fpsList.size,
-                points = raw.takeLast(MAX_POINTS)
+                points = raw.takeLast(MAX_POINTS),
+                timelineFrames = frameStats?.frames ?: 0L,
+                timelineJank = frameStats?.jankPct ?: 0f
             )
             sessions.add(0, session)
             while (sessions.size > MAX_SESSIONS) sessions.removeAt(sessions.lastIndex)
@@ -156,7 +160,9 @@ object RecorderStore {
                         powerAvg = o.optDouble("powerAvg").toFloat(),
                         tempMax = o.optDouble("tempMax").toFloat(),
                         samples = o.optInt("samples"),
-                        points = points
+                        points = points,
+                        timelineFrames = o.optLong("timelineFrames", 0L),
+                        timelineJank = o.optDouble("timelineJank", 0.0).toFloat()
                     )
                 )
             }
@@ -183,6 +189,8 @@ object RecorderStore {
                     put("powerAvg", s.powerAvg.toDouble())
                     put("tempMax", s.tempMax.toDouble())
                     put("samples", s.samples)
+                    put("timelineFrames", s.timelineFrames)
+                    put("timelineJank", s.timelineJank.toDouble())
                     val points = JSONArray()
                     s.points.forEach { p ->
                         points.put(
@@ -206,3 +214,4 @@ object RecorderStore {
             .apply()
     }
 }
+

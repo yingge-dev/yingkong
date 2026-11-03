@@ -107,6 +107,7 @@ class RecorderService : Service() {
     private fun startRecording() {
         if (RecorderStore.recording.value) return
         RecorderStore.begin()
+        RootShell.enableFrameStats()
         startInForeground("等待前台应用…")
         showOverlay()
         job?.cancel()
@@ -136,7 +137,9 @@ class RecorderService : Service() {
         if (!RecorderStore.recording.value) return
         job?.cancel()
         job = null
-        RecorderStore.finish(this)
+        val pkg = RecorderStore.targetPkg.value
+        val frameStats = if (pkg != null) RootShell.captureFrameStats(pkg) else null
+        RecorderStore.finish(this, frameStats)
         updateOverlay()
         if (overlayEnabled) {
             startInForeground("悬浮按钮已开启 · 点按开始记录")
@@ -405,5 +408,6 @@ class RecorderService : Service() {
         super.onDestroy()
     }
 }
+
 
 

@@ -331,7 +331,7 @@ fun SettingsScreen(deviceName: String) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "FrameTimeline、CPU/GPU 调频会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
+                "录制结束时会抓一次 FrameTimeline；没有 timeline 的 SurfaceView 仍只能算 FPS。CPU/GPU 调频下一步，不会拿未验证的 sysfs 直接写。",
                 fontSize = 8.5.sp,
                 color = Tertiary,
                 lineHeight = 13.sp
@@ -390,6 +390,7 @@ fun SettingsScreen(deviceName: String) {
         )
     }
 }
+
 
 
 

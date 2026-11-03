@@ -459,6 +459,14 @@ private fun SessionDetail(session: RecSession, onBack: () -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        if (session.timelineFrames > 0) {
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "FrameTimeline：${session.timelineFrames} 帧 · Jank %.1f%%".format(session.timelineJank),
+                fontSize = 8.sp,
+                color = Orange
+            )
+        }
         Spacer(Modifier.height(13.dp))
 
         Column(
@@ -655,6 +663,7 @@ private fun formatDuration(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(total / 60, total % 60)
 }
+
 
 
 
