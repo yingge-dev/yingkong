@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -32,9 +33,19 @@
             android:exported="true"
             android:multiprocess="false" />
 
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".RecorderService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false">
             <property
@@ -45,6 +56,8 @@
     </application>
 
 </manifest>
+
+
 
 
 

@@ -46,8 +46,14 @@ class RecorderService : Service() {
         const val ACTION_STOP_SERVICE = "com.yingkong.app.action.STOP_SERVICE"
         const val PREFS = "yingkong"
         const val KEY_OVERLAY = "overlay_enabled"
+        const val EXTRA_TOKEN = "token"
         private const val CHANNEL = "recording"
         private const val NOTIF_ID = 1001
+
+        fun controlIntent(context: android.content.Context, action: String): Intent =
+            Intent(context, RecorderService::class.java)
+                .setAction(action)
+                .putExtra(EXTRA_TOKEN, ControlToken.get(context))
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -57,6 +63,7 @@ class RecorderService : Service() {
     private var homePackage: String? = null
 
     private var overlayEnabled = false
+    private lateinit var controlToken: String
     private var windowManager: WindowManager? = null
     private var overlayView: TextView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
@@ -64,11 +71,22 @@ class RecorderService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        controlToken = ControlToken.get(this)
         homePackage = resolveHome()
         overlayEnabled = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_OVERLAY, false)
+        scope.launch(Dispatchers.IO) {
+            RootShell.runRoot(
+                "mkdir -p /data/adb/yingkong; echo '$controlToken' > /data/adb/yingkong/token; chmod 600 /data/adb/yingkong/token"
+            )
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val suppliedToken = intent?.getStringExtra(EXTRA_TOKEN)
+        if (intent?.action != null && suppliedToken != controlToken) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         when (intent?.action) {
             ACTION_START -> {
                 if (RecorderStore.recording.value) updateOverlay() else startRecording()
@@ -103,6 +121,7 @@ class RecorderService : Service() {
             startInForeground("悬浮按钮已开启 · 点按开始记录")
             startIdleMonitoring()
         }
+        setAutostart(true)
         showOverlay()
         updateNotification()
     }
@@ -110,6 +129,7 @@ class RecorderService : Service() {
     private fun disableOverlay() {
         overlayEnabled = false
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_OVERLAY, false).apply()
+        setAutostart(false)
         hideOverlay()
         idleJob?.cancel()
         idleJob = null
@@ -166,6 +186,13 @@ class RecorderService : Service() {
         } else {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
+        }
+    }
+
+    private fun setAutostart(enabled: Boolean) {
+        scope.launch(Dispatchers.IO) {
+            val path = "/data/adb/yingkong/autostart"
+            RootShell.runRoot(if (enabled) "touch $path" else "rm -f $path")
         }
     }
 
@@ -269,7 +296,7 @@ class RecorderService : Service() {
             val stop = PendingIntent.getService(
                 this,
                 2,
-                Intent(this, RecorderService::class.java).setAction(ACTION_STOP),
+                Intent(this, RecorderService::class.java).setAction(ACTION_STOP).putExtra(EXTRA_TOKEN, controlToken),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             builder.addAction(0, "停止", stop)
@@ -278,7 +305,7 @@ class RecorderService : Service() {
             val hide = PendingIntent.getService(
                 this,
                 3,
-                Intent(this, RecorderService::class.java).setAction(ACTION_HIDE_OVERLAY),
+                Intent(this, RecorderService::class.java).setAction(ACTION_HIDE_OVERLAY).putExtra(EXTRA_TOKEN, controlToken),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             builder.addAction(0, "隐藏悬浮", hide)
@@ -286,7 +313,7 @@ class RecorderService : Service() {
             val show = PendingIntent.getService(
                 this,
                 4,
-                Intent(this, RecorderService::class.java).setAction(ACTION_SHOW_OVERLAY),
+                Intent(this, RecorderService::class.java).setAction(ACTION_SHOW_OVERLAY).putExtra(EXTRA_TOKEN, controlToken),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             builder.addAction(0, "显示悬浮", show)
@@ -295,7 +322,7 @@ class RecorderService : Service() {
             val close = PendingIntent.getService(
                 this,
                 5,
-                Intent(this, RecorderService::class.java).setAction(ACTION_STOP_SERVICE),
+                Intent(this, RecorderService::class.java).setAction(ACTION_STOP_SERVICE).putExtra(EXTRA_TOKEN, controlToken),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             builder.addAction(0, "关闭", close)
@@ -312,8 +339,8 @@ class RecorderService : Service() {
             }
             if (!Settings.canDrawOverlays(this)) return@post
             val manager = getSystemService(WINDOW_SERVICE) as WindowManager
-            val width = dp(112)
-            val height = dp(58)
+            val width = dp(56)
+            val height = dp(56)
             val params = WindowManager.LayoutParams(
                 width,
                 height,
@@ -328,9 +355,9 @@ class RecorderService : Service() {
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                x = getSharedPreferences(PREFS, MODE_PRIVATE).getInt("overlay_x", dp(12))
-                y = getSharedPreferences(PREFS, MODE_PRIVATE).getInt("overlay_y", dp(240))
+                gravity = Gravity.TOP or Gravity.END
+                x = getSharedPreferences(PREFS, MODE_PRIVATE).getInt("overlay2_x", dp(8))
+                y = getSharedPreferences(PREFS, MODE_PRIVATE).getInt("overlay2_y", dp(220))
             }
             val view = TextView(this).apply {
                 gravity = Gravity.CENTER
@@ -370,26 +397,16 @@ class RecorderService : Service() {
             val view = overlayView ?: return@post
             val recording = RecorderStore.recording.value
             val snapshot = RecorderStore.latest.value
-            view.text = if (recording) {
-                val fps = snapshot?.fps ?: 0f
-                val temp = snapshot?.thermal ?: 0f
-                val power = snapshot?.power ?: 0f
-                "%.0f FPS\n%.0f°C %.2fW".format(fps, temp, power)
-            } else {
-                val fps = snapshot?.fps ?: 0f
-                val temp = snapshot?.thermal ?: 0f
-                val batt = snapshot?.batt ?: 0f
-                "%.0f FPS\n%.0f°C %.0f%%".format(fps, temp, batt)
-            }
+            val fps = snapshot?.fps ?: 0f
+            view.text = "%.0f\nFPS".format(fps)
             view.background = overlayBackground(recording)
         }
     }
 
     private fun overlayBackground(recording: Boolean): GradientDrawable {
         return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(16).toFloat()
-            setColor(if (recording) 0xF2FF6900.toInt() else 0xE61D1D1F.toInt())
+            shape = GradientDrawable.OVAL
+            setColor(if (recording) 0xE6FF6900.toInt() else 0xCC1D1D1F.toInt())
             setStroke(dp(2), if (recording) Color.WHITE else 0xFFFF6900.toInt())
         }
     }
@@ -417,7 +434,7 @@ class RecorderService : Service() {
                     val dx = event.rawX - downRawX
                     val dy = event.rawY - downRawY
                     if (abs(dx) > dp(6) || abs(dy) > dp(6)) moved = true
-                    params.x = startX + dx.toInt()
+                    params.x = startX - dx.toInt()
                     params.y = startY + dy.toInt()
                     try {
                         manager.updateViewLayout(view, params)
@@ -429,8 +446,8 @@ class RecorderService : Service() {
                     Log.d("OverlayTouch", "up moved=$moved")
                     if (moved) {
                         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                            .putInt("overlay_x", params.x)
-                            .putInt("overlay_y", params.y)
+                            .putInt("overlay2_x", params.x)
+                            .putInt("overlay2_y", params.y)
                             .apply()
                     } else {
                         view.performClick()
@@ -516,6 +533,7 @@ class RecorderService : Service() {
         super.onDestroy()
     }
 }
+
 
 
 

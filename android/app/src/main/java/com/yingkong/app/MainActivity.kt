@@ -146,7 +146,7 @@ private fun YingKongApp() {
         if (prefs.getBoolean(RecorderService.KEY_OVERLAY, false) && Settings.canDrawOverlays(context)) {
             ContextCompat.startForegroundService(
                 context,
-                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+                RecorderService.controlIntent(context, RecorderService.ACTION_SHOW_OVERLAY)
             )
         }
     }

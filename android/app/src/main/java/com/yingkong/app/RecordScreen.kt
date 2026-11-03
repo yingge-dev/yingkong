@@ -108,7 +108,7 @@ fun RecordScreen(deviceName: String) {
         if (granted) {
             ContextCompat.startForegroundService(
                 context,
-                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+                RecorderService.controlIntent(context, RecorderService.ACTION_SHOW_OVERLAY)
             )
         }
     }
@@ -125,13 +125,13 @@ fun RecordScreen(deviceName: String) {
                 overlayOn = true
                 ContextCompat.startForegroundService(
                     context,
-                    Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+                    RecorderService.controlIntent(context, RecorderService.ACTION_SHOW_OVERLAY)
                 )
             }
         } else {
             overlayOn = false
             context.startService(
-                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_HIDE_OVERLAY)
+                RecorderService.controlIntent(context, RecorderService.ACTION_HIDE_OVERLAY)
             )
         }
     }
@@ -145,13 +145,13 @@ fun RecordScreen(deviceName: String) {
         }
         ContextCompat.startForegroundService(
             context,
-            Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_START)
+            RecorderService.controlIntent(context, RecorderService.ACTION_START)
         )
     }
 
     val stopRecording = {
         context.startService(
-            Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_STOP)
+            RecorderService.controlIntent(context, RecorderService.ACTION_STOP)
         )
     }
 

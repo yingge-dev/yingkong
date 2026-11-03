@@ -25,3 +25,23 @@ if [ -n "$BIN" ] && [ -x "$BIN" ]; then
 else
   sh "$MODDIR/bin/yingkong-daemon.sh" >"$DATA/daemon.log" 2>&1 &
 fi
+if [ -f "$DATA/autostart" ]; then
+  TOKEN=$(cat "$DATA/token" 2>/dev/null)
+  if [ -n "$TOKEN" ]; then
+    (
+      i=0
+      while [ $i -lt 180 ]; do
+        if [ -d /data/data/com.yingkong.app ]; then
+          sleep 3
+          am start-foreground-service -n com.yingkong.app/.RecorderService -a com.yingkong.app.action.SHOW_OVERLAY --es token "$TOKEN"
+          exit 0
+        fi
+        sleep 2
+        i=$((i+1))
+      done
+    ) >/dev/null 2>&1 &
+  fi
+fi
+
+
+
