@@ -144,6 +144,41 @@ fun SettingsScreen(deviceName: String) {
                         color = Tertiary
                     )
                 }
+                if (state.root) {
+                    Spacer(Modifier.height(5.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("线程绑核（实验）", fontSize = 9.sp, color = Ink)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (state.bindEnabled) "开" else "关",
+                            fontSize = 9.sp,
+                            color = if (state.bindEnabled) Green else Tertiary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    val next = !state.bindEnabled
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            RootShell.runRoot(
+                                                "echo ${if (next) "big" else "off"} > /data/adb/yingkong/bind"
+                                            )
+                                        }
+                                        delay(500)
+                                        state = withContext(Dispatchers.IO) { ModuleManager.state() }
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Text(
+                        "把 RenderThread / UnityMain 等绑到大核；关闭会恢复全核。",
+                        fontSize = 7.5.sp,
+                        color = Tertiary
+                    )
+                    if (state.bindEnabled) {
+                        Text("已绑线程：${state.bound}", fontSize = 7.5.sp, color = Green)
+                    }
+                }
             }
             Spacer(Modifier.height(7.dp))
             Text(
@@ -296,7 +331,7 @@ fun SettingsScreen(deviceName: String) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "FrameTimeline、调频/线程绑核会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
+                "FrameTimeline、CPU/GPU 调频会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
                 fontSize = 8.5.sp,
                 color = Tertiary,
                 lineHeight = 13.sp
@@ -355,6 +390,8 @@ fun SettingsScreen(deviceName: String) {
         )
     }
 }
+
+
 
 
 

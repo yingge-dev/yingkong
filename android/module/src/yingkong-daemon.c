@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,7 @@
 #define MAX_FREQ 16
 #define MAX_THERMAL 64
 #define MAX_THREADS 512
-#define VERSION "0.4.0"
+#define VERSION "0.5.0"
 
 typedef struct {
     unsigned long long total;
@@ -46,6 +47,72 @@ static volatile sig_atomic_t running = 1;
 static PrevThread previous_threads[MAX_THREADS];
 static int previous_thread_count = 0;
 static pid_t previous_thread_pid = -1;
+static int bind_mode = 0;
+static int last_bound_count = 0;
+static cpu_set_t big_set;
+static cpu_set_t all_set;
+
+static int read_text(const char *path, char *buf, size_t size);
+static long long read_number(const char *path, long long fallback);
+
+static int is_bind_thread(const char *name) {
+    return strstr(name, "Render") != NULL ||
+        strstr(name, "UnityMain") != NULL ||
+        strstr(name, "UnityGfx") != NULL ||
+        strstr(name, "GameThread") != NULL ||
+        strstr(name, "RHIThread") != NULL;
+}
+
+static void detect_big_cores(void) {
+    int n = (int)sysconf(_SC_NPROCESSORS_ONLN);
+    if (n <= 0) n = 1;
+    if (n > CPU_SETSIZE) n = CPU_SETSIZE;
+    CPU_ZERO(&all_set);
+    CPU_ZERO(&big_set);
+    int freq[CPU_SETSIZE];
+    memset(freq, 0, sizeof(freq));
+    int maximum = 0;
+    for (int i = 0; i < n; i++) {
+        CPU_SET(i, &all_set);
+        char path[256];
+        snprintf(path, sizeof(path),
+                 "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        long long value = read_number(path, 0);
+        if (value > 0 && value < 10000000) {
+            freq[i] = (int)value;
+            if (freq[i] > maximum) maximum = freq[i];
+        }
+    }
+    if (maximum > 0) {
+        for (int i = 0; i < n; i++) {
+            if (freq[i] > 0 && freq[i] >= maximum * 9 / 10) CPU_SET(i, &big_set);
+        }
+    }
+    if (CPU_COUNT(&big_set) == 0) {
+        CPU_SET(n - 1, &big_set);
+        if (n > 1) CPU_SET(n - 2, &big_set);
+    }
+}
+
+static void read_bind_mode(void) {
+    char value[32] = "";
+    read_text(DATA_DIR "/bind", value, sizeof(value));
+    bind_mode = strcmp(value, "big") == 0 || strcmp(value, "1") == 0 ||
+        strcmp(value, "on") == 0;
+}
+
+static void apply_binding(ThreadNow *threads, int count) {
+    int bound = 0;
+    for (int i = 0; i < count; i++) {
+        if (!is_bind_thread(threads[i].name)) continue;
+        cpu_set_t *set = bind_mode ? &big_set : &all_set;
+        if (sched_setaffinity(threads[i].tid, sizeof(cpu_set_t), set) == 0 && bind_mode) {
+            bound++;
+        }
+    }
+    last_bound_count = bound;
+}
+
 
 static void on_signal(int sig) {
     (void)sig;
@@ -358,6 +425,8 @@ static void collect_threads(pid_t pid, char *out, size_t out_size, double dt) {
     }
 
 
+    apply_binding(threads, count);
+
     size_t offset = 0;
     offset += snprintf(out + offset, out_size - offset, "[");
     int emitted = 0;
@@ -412,6 +481,7 @@ int main(void) {
     signal(SIGHUP, on_signal);
 
     mkdir(DATA_DIR, 0755);
+    detect_big_cores();
 
     long long old_pid = read_number(PID_PATH, -1);
     if (old_pid > 0 && kill((pid_t)old_pid, 0) == 0) {
@@ -477,6 +547,7 @@ int main(void) {
             (now_mono.tv_nsec - last_mono.tv_nsec) / 1000000000.0;
         last_mono = now_mono;
 
+        read_bind_mode();
         char target[256] = "";
         read_text(TARGET_PATH, target, sizeof(target));
         pid_t target_pid = find_target_pid(target);
@@ -508,8 +579,8 @@ int main(void) {
             offset += snprintf(json + offset, sizeof(json) - offset, "%s%d", i ? "," : "", freqs[i]);
         }
         snprintf(json + offset, sizeof(json) - offset,
-            "],\"gpu\":%.0f,\"gpu_mhz\":%.0f,\"load\":\"%s\",\"target_pid\":%d,\"threads\":%s}",
-            gpu_busy, gpu_mhz, load, target_pid, thread_json);
+            "],\"gpu\":%.0f,\"gpu_mhz\":%.0f,\"load\":\"%s\",\"target_pid\":%d,\"bind\":%d,\"bound\":%d,\"threads\":%s}",
+            gpu_busy, gpu_mhz, load, target_pid, bind_mode, last_bound_count, thread_json);
 
         write_status(json);
         append_sample(json);
@@ -519,4 +590,5 @@ int main(void) {
     unlink(PID_PATH);
     return 0;
 }
+
 

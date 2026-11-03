@@ -20,7 +20,9 @@ data class ModuleState(
     val temp: Float? = null,
     val battery: Float? = null,
     val power: Float? = null,
-    val threads: List<ModuleThread> = emptyList()
+    val threads: List<ModuleThread> = emptyList(),
+    val bindEnabled: Boolean = false,
+    val bound: Int = 0
 )
 
 object ModuleManager {
@@ -45,6 +47,8 @@ object ModuleManager {
         var battery: Float? = null
         var power: Float? = null
         val threads = mutableListOf<ModuleThread>()
+        var bindEnabled = false
+        var bound = 0
         val statusRaw = RootShell.runRoot("cat /data/adb/yingkong/status", 5)?.trim()
         statusRaw?.takeIf { it.startsWith("{") }?.let { raw ->
             try {
@@ -53,6 +57,8 @@ object ModuleManager {
                 temp = json.optDouble("temp", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
                 battery = json.optDouble("battery", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
                 power = json.optDouble("power", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
+                bindEnabled = json.optInt("bind", 0) == 1
+                bound = json.optInt("bound", 0)
                 json.optJSONArray("threads")?.let { array ->
                     for (index in 0 until array.length()) {
                         val thread = array.optJSONObject(index) ?: continue
@@ -78,7 +84,9 @@ object ModuleManager {
             temp = temp,
             battery = battery,
             power = power,
-            threads = threads
+            threads = threads,
+            bindEnabled = bindEnabled,
+            bound = bound
         )
     }
 
@@ -116,5 +124,6 @@ object ModuleManager {
         return RootShell.runRoot(cmd, 20) ?: "root 无响应"
     }
 }
+
 
 
