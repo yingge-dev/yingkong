@@ -46,7 +46,8 @@ Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATU
 - 模块安装后建议重启；如果异常，可在 KSU/Magisk 管理器或安全模式下禁用模块
 - **FPS 双通道**：普通 App 用 gfxinfo 帧时间；游戏/视频走 SurfaceView 等图层时，用 SurfaceFlinger 图层 frame 计数差值回退，避免只有 0 或 165Hz 合成率
 - 已知限制：SurfaceFlinger 回退路径暂时没有 Jank/帧时，需要后续补 FrameTimeline
-- 工具 / 应用 / 设置三个 Tab 暂未接页面，先不放假数据
+- **工具 / 进程**：真实进程列表（PID/UID/内存），按内存/名称排序、搜索、结束用户进程；系统进程只读保护
+- 应用 Tab 暂未接页面，先不放假数据
 - 构建环境：JDK 17 + Android SDK 35 + Gradle 8.9，`android/` 为 Compose 工程
 - 构建命令（Windows）：
 
@@ -99,6 +100,7 @@ assets/         字体、图标
 ```
 
 License: TBD
+
 
 
 

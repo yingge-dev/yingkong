@@ -234,11 +234,13 @@ private fun YingKongApp() {
         }
         } else if (tab == 1) {
             RecordScreen(deviceName = Build.MODEL)
+        } else if (tab == 2) {
+            ToolsScreen(deviceName = Build.MODEL)
         } else if (tab == 4) {
             SettingsScreen(deviceName = Build.MODEL)
         } else {
             PlaceholderScreen(
-                title = if (tab == 2) "工具" else "应用",
+                title = "应用",
                 deviceName = Build.MODEL
             )
         }
@@ -838,6 +840,7 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
         }
     }
 }
+
 
 
 
