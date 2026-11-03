@@ -63,6 +63,7 @@ fun SettingsScreen(deviceName: String) {
     var shizukuAvailable by remember { mutableStateOf(false) }
     var shizukuGranted by remember { mutableStateOf(false) }
     var shizukuMessage by remember { mutableStateOf<String?>(null) }
+    var forceShizuku by remember { mutableStateOf(RootShell.forceShizuku) }
 
     val refresh = {
         scope.launch {
@@ -242,7 +243,20 @@ fun SettingsScreen(deviceName: String) {
                         .clickable { ShizukuAccess.request(context as? Activity) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
-                else -> Text(
+                else -> {
+                    Text(
+                        "优先走 Shizuku：${if (forceShizuku) "开" else "关"}",
+                        fontSize = 9.sp,
+                        color = if (forceShizuku) Green else Muted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                forceShizuku = !forceShizuku
+                                RootShell.setForceShizuku(forceShizuku)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                    Text(
                     "测试 Shizuku",
                     fontSize = 10.sp,
                     color = Orange,
@@ -255,7 +269,8 @@ fun SettingsScreen(deviceName: String) {
                             }
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
+                    )
+                }
             }
             shizukuMessage?.let {
                 Spacer(Modifier.height(3.dp))
@@ -340,6 +355,7 @@ fun SettingsScreen(deviceName: String) {
         )
     }
 }
+
 
 
 

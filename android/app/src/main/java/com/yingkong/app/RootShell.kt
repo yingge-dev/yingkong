@@ -71,6 +71,14 @@ object RootShell {
     private var rootChecked = false
     private var rootOk = false
 
+    @Volatile
+    var forceShizuku: Boolean = false
+        private set
+
+    fun setForceShizuku(enabled: Boolean) {
+        forceShizuku = enabled
+    }
+
 
     fun snapshot(): Snapshot? {
         val raw = execCmd(script) ?: return null
@@ -486,6 +494,8 @@ object RootShell {
         return output.toString()
     }
 }
+
+
 
 
 

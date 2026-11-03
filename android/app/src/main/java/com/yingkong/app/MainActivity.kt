@@ -345,7 +345,7 @@ private fun StatusLine(rootOk: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(4.dp).clip(CircleShape).background(if (rootOk) Green else Orange))
         Spacer(Modifier.width(5.dp))
-        Text(if (rootOk) "Root 已授权" else "等待 Root 授权", fontSize = 8.5.sp, color = Tertiary)
+        Text(if (rootOk) "权限已连接" else "等待权限", fontSize = 8.5.sp, color = Tertiary)
         Text("  ·  ", fontSize = 8.5.sp, color = Tertiary)
         Text(if (rootOk) "实时数据" else "暂无数据", fontSize = 8.5.sp, color = Tertiary)
     }
@@ -372,7 +372,7 @@ private fun HeroCard(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = appLabel ?: if (available) "未检测到前台应用" else "等待 Root 授权",
+                text = appLabel ?: if (available) "未检测到前台应用" else "等待权限",
                 fontSize = 10.5.sp,
                 color = Color(0xFF6E6E73),
                 fontWeight = FontWeight.Medium,
@@ -479,36 +479,36 @@ private fun MetricGrid(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricTile(
                 "CPU", "%.0f".format(cpu), "%", if (available) "$coreCount 核" else "—",
-                if (available) "最高 %.1fGHz".format(maxGhz) else "等待 Root 授权",
+                if (available) "最高 %.1fGHz".format(maxGhz) else "等待权限",
                 Purple, cpuHistory, available, Modifier.weight(1f)
             )
             MetricTile(
                 "GPU", "%.0f".format(gpu), "%", "GPU",
-                if (available) "%.0f MHz".format(gpuFreq) else "等待 Root 授权",
+                if (available) "%.0f MHz".format(gpuFreq) else "等待权限",
                 Blue, gpuHistory, available, Modifier.weight(1f)
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricTile(
                 "内存", "%.1f".format(ram), "G", if (available) "%.0fG".format(ramTotal) else "—",
-                if (available) "可用 %.1fG".format((ramTotal - ram).coerceAtLeast(0f)) else "等待 Root 授权",
+                if (available) "可用 %.1fG".format((ramTotal - ram).coerceAtLeast(0f)) else "等待权限",
                 Teal, ramHistory, available, Modifier.weight(1f)
             )
             MetricTile(
                 "温度", "%.1f".format(temp), "°C", if (available) "电池 %.1f".format(batteryTemp) else "—",
-                if (available) "热点温度" else "等待 Root 授权",
+                if (available) "热点温度" else "等待权限",
                 Orange, tempHistory, available, Modifier.weight(1f)
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricTile(
                 "功耗", "%.2f".format(power), "W", if (available) (if (currentMa > 50f) "充电中" else "放电中") else "—",
-                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待 Root 授权",
+                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待权限",
                 Amber, powerHistory, available, Modifier.weight(1f)
             )
             MetricTile(
                 "电池", "%.0f".format(batt), "%", if (available) (if (currentMa > 50f) "充电" else "放电") else "—",
-                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待 Root 授权",
+                if (available) "%.2fV · %.0fmA".format(voltage, currentMa) else "等待权限",
                 Green, battHistory, available, Modifier.weight(1f)
             )
         }
@@ -842,6 +842,7 @@ private fun TabIcon(kind: Int, tint: Color, iconSize: Dp = 19.dp) {
         }
     }
 }
+
 
 
 

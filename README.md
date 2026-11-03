@@ -46,7 +46,7 @@ Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATU
 - 模块安装后建议重启；如果异常，可在 KSU/Magisk 管理器或安全模式下禁用模块
 - **FPS 双通道**：普通 App 用 gfxinfo 帧时间；游戏/视频走 SurfaceView 等图层时，用 SurfaceFlinger 图层 frame 计数差值回退，避免只有 0 或 165Hz 合成率
 - 已知限制：SurfaceFlinger 回退路径暂时没有 Jank/帧时，需要后续补 FrameTimeline
-- **Shizuku 免 root 通道**：安装并启动 Shizuku 后可授权颖控；root 优先，未 root 时控制台/记录/进程列表走 Shizuku shell
+- **Shizuku 免 root 通道**：安装并启动 Shizuku 后可授权颖控；root 优先，未 root 时控制台/记录/进程/应用管理走 Shizuku shell；已验证 adb/shell 模式 `uid=2000(shell)` 下 `id`、`pm suspend`、`am force-stop` 可用
 - **工具 / 进程**：真实进程列表（PID/UID/内存），按内存/名称排序、搜索、结束用户进程；系统进程只读保护
 - **应用管理**：用户应用列表、搜索、强停、`pm suspend` 冻结/解冻、待机分组 restricted/active；系统应用不列入，避免误操作
 - 应用 Tab 暂未接页面，先不放假数据
@@ -102,6 +102,7 @@ assets/         字体、图标
 ```
 
 License: TBD
+
 
 
 
