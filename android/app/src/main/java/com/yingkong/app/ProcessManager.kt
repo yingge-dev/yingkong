@@ -21,7 +21,7 @@ data class ProcessItem(
 
 object ProcessManager {
     fun list(): List<ProcessItem> {
-        val output = RootShell.runRoot("ps -A -o PID,PPID,UID,RSS,NAME", 10) ?: return emptyList()
+        val output = RootShell.runShell("ps -A -o PID,PPID,UID,RSS,NAME", 10) ?: return emptyList()
         return output.lineSequence()
             .drop(1)
             .mapNotNull { line ->
@@ -42,8 +42,13 @@ object ProcessManager {
         if (!item.isKillable) return "系统进程不可结束"
         if (item.pid == android.os.Process.myPid()) return "不能结束颖控自身"
         if (item.name == "com.yingkong.app") return "不能结束颖控自身"
-        return RootShell.runRoot("kill -9 ${item.pid}", 5)?.let { "已发送结束信号" } ?: "root 无响应"
+        if (RootShell.isRootAvailable()) {
+            return RootShell.runRoot("kill -9 ${item.pid}", 5)?.let { "已发送结束信号" } ?: "root 无响应"
+        }
+        val packageName = item.name.substringBefore(":")
+        return RootShell.runShell("am force-stop $packageName", 8)?.let { "已强制停止" } ?: "Shizuku 无响应"
     }
 }
+
 
 

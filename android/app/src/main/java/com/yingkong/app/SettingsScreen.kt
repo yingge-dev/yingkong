@@ -1,4 +1,6 @@
-package com.yingkong.app
+﻿package com.yingkong.app
+
+import android.app.Activity
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -57,6 +60,9 @@ fun SettingsScreen(deviceName: String) {
     var message by remember { mutableStateOf<String?>(null) }
     var confirmInstall by remember { mutableStateOf(false) }
     var confirmUninstall by remember { mutableStateOf(false) }
+    var shizukuAvailable by remember { mutableStateOf(false) }
+    var shizukuGranted by remember { mutableStateOf(false) }
+    var shizukuMessage by remember { mutableStateOf<String?>(null) }
 
     val refresh = {
         scope.launch {
@@ -65,6 +71,13 @@ fun SettingsScreen(deviceName: String) {
         }
     }
     LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(Unit) {
+        while (true) {
+            shizukuAvailable = ShizukuAccess.available()
+            shizukuGranted = ShizukuAccess.granted()
+            delay(2000)
+        }
+    }
 
     val statusText = when {
         state.installed && state.running -> "已安装 · 守护运行中"
@@ -195,6 +208,69 @@ fun SettingsScreen(deviceName: String) {
                 .background(Color.White.copy(alpha = 0.9f))
                 .padding(14.dp)
         ) {
+            Text("免 root 通道", fontSize = 10.5.sp, color = Muted)
+            Spacer(Modifier.height(5.dp))
+            Text(
+                when {
+                    !shizukuAvailable -> "未检测到 Shizuku 服务"
+                    shizukuGranted -> "Shizuku 已连接 · 已授权"
+                    else -> "Shizuku 已连接 · 未授权"
+                },
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = when {
+                    shizukuGranted -> Green
+                    shizukuAvailable -> Orange
+                    else -> Tertiary
+                }
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "没有 root 时，控制台、记录、进程列表会走 Shizuku shell；模块安装仍需 root。",
+                fontSize = 8.5.sp,
+                color = Tertiary
+            )
+            Spacer(Modifier.height(8.dp))
+            when {
+                !shizukuAvailable -> Text("请先安装并启动 Shizuku。", fontSize = 8.sp, color = Tertiary)
+                !shizukuGranted -> Text(
+                    "授权 Shizuku",
+                    fontSize = 10.sp,
+                    color = Orange,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { ShizukuAccess.request(context as? Activity) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+                else -> Text(
+                    "测试 Shizuku",
+                    fontSize = 10.sp,
+                    color = Orange,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable {
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) { RootShell.runShizuku("id") }
+                                shizukuMessage = result?.trim() ?: "Shizuku 无响应"
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+            shizukuMessage?.let {
+                Spacer(Modifier.height(3.dp))
+                Text(it, fontSize = 8.sp, color = Muted)
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.White.copy(alpha = 0.9f))
+                .padding(14.dp)
+        ) {
             Text("模块现在做什么", fontSize = 10.5.sp, color = Muted)
             Spacer(Modifier.height(6.dp))
             Text(
@@ -205,25 +281,13 @@ fun SettingsScreen(deviceName: String) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "FrameTimeline、线程级数据、调频/线程绑核会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
+                "FrameTimeline、调频/线程绑核会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
                 fontSize = 8.5.sp,
                 color = Tertiary,
                 lineHeight = 13.sp
             )
         }
 
-        Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color.White.copy(alpha = 0.75f))
-                .padding(14.dp)
-        ) {
-            Text("Shizuku 免 root", fontSize = 10.5.sp, color = Muted)
-            Spacer(Modifier.height(4.dp))
-            Text("下一步接入，让没有 root 的用户也能读系统帧数据和进程。", fontSize = 8.5.sp, color = Tertiary)
-        }
     }
 
     if (confirmInstall) {
@@ -276,5 +340,8 @@ fun SettingsScreen(deviceName: String) {
         )
     }
 }
+
+
+
 
 

@@ -25,6 +25,13 @@
             </intent-filter>
         </activity>
 
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false" />
+
         <service
             android:name=".RecorderService"
             android:exported="false"
@@ -38,5 +45,6 @@
     </application>
 
 </manifest>
+
 
 

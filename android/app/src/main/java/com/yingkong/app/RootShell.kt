@@ -1,6 +1,9 @@
 ﻿package com.yingkong.app
 
+import android.os.ParcelFileDescriptor
+import android.util.Log
 import java.io.File
+import moe.shizuku.server.IShizukuService
 import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import kotlin.math.abs
@@ -65,6 +68,8 @@ object RootShell {
     private var sfPrevCounts = HashMap<String, Long>()
     private var sfPrevTime = 0L
     private var sfPkg: String? = null
+    private var rootChecked = false
+    private var rootOk = false
 
 
     fun snapshot(): Snapshot? {
@@ -375,9 +380,27 @@ object RootShell {
     private fun firstLong(line: String): Long? =
         Regex("\\d+").find(line)?.value?.toLongOrNull()
 
-    fun runRoot(cmd: String, timeoutSeconds: Long = 8): String? = execCmd(cmd, timeoutSeconds)
+    fun runRoot(cmd: String, timeoutSeconds: Long = 8): String? = execSu(cmd, timeoutSeconds)
+
+    fun runShell(cmd: String, timeoutSeconds: Long = 8): String? = execCmd(cmd, timeoutSeconds)
+
+    fun runShizuku(cmd: String, timeoutSeconds: Long = 8): String? = execShizuku(cmd, timeoutSeconds)
+
+    fun isRootAvailable(): Boolean {
+        if (!rootChecked) {
+            rootOk = execSu("id", 3)?.contains("uid=0") == true
+            rootChecked = true
+        }
+        return rootOk
+    }
 
     private fun execCmd(cmd: String, timeoutSeconds: Long = 8): String? {
+        if (isRootAvailable()) return execSu(cmd, timeoutSeconds)
+        if (ShizukuAccess.granted()) return execShizuku(cmd, timeoutSeconds)
+        return null
+    }
+
+    private fun execSu(cmd: String, timeoutSeconds: Long = 8): String? {
         var process: Process? = null
         return try {
             val su = if (File("/system/bin/su").exists()) "/system/bin/su" else "su"
@@ -385,29 +408,7 @@ object RootShell {
             pb.redirectErrorStream(true)
             val started = pb.start()
             process = started
-            val output = StringBuilder()
-            val reader = Thread {
-                try {
-                    started.inputStream.bufferedReader().use { readerStream ->
-                        val buffer = CharArray(8192)
-                        while (true) {
-                            val count = readerStream.read(buffer)
-                            if (count < 0) break
-                            output.append(buffer, 0, count)
-                        }
-                    }
-                } catch (_: Exception) {
-                }
-            }.apply {
-                isDaemon = true
-                start()
-            }
-            if (!started.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-                started.destroyForcibly()
-                return null
-            }
-            reader.join(1000)
-            output.toString()
+            readProcess(started, timeoutSeconds)
         } catch (e: Exception) {
             try {
                 process?.destroyForcibly()
@@ -416,7 +417,84 @@ object RootShell {
             null
         }
     }
+
+    private fun execShizuku(cmd: String, timeoutSeconds: Long = 8): String? {
+        var remote: moe.shizuku.server.IRemoteProcess? = null
+        return try {
+            Log.d("ShizukuExec", "start")
+            val binder = rikka.shizuku.Shizuku.getBinder()
+            Log.d("ShizukuExec", "binder=${binder != null}")
+            if (binder == null) return null
+            val service = IShizukuService.Stub.asInterface(binder)
+            val process = service.newProcess(arrayOf("sh", "-c", cmd), null, null)
+            remote = process
+            val input = ParcelFileDescriptor.AutoCloseInputStream(process.inputStream)
+            val output = StringBuilder()
+            val reader = Thread {
+                try {
+                    input.use { stream ->
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            val count = stream.read(buffer)
+                            if (count < 0) break
+                            output.append(String(buffer, 0, count))
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }.apply {
+                isDaemon = true
+                start()
+            }
+            val finished = process.waitForTimeout(timeoutSeconds * 1000, TimeUnit.MILLISECONDS.name)
+            if (!finished) process.destroy()
+            reader.join(1000)
+            if (!finished) null else output.toString()
+        } catch (e: Exception) {
+            Log.e("ShizukuExec", "exec failed: ${e.javaClass.simpleName}: ${e.message}", e)
+            try {
+                remote?.destroy()
+            } catch (_: Exception) {
+            }
+            null
+        }
+    }
+
+    private fun readProcess(started: Process, timeoutSeconds: Long): String? {
+        val output = StringBuilder()
+        val reader = Thread {
+            try {
+                started.inputStream.bufferedReader().use { readerStream ->
+                    val buffer = CharArray(8192)
+                    while (true) {
+                        val count = readerStream.read(buffer)
+                        if (count < 0) break
+                        output.append(buffer, 0, count)
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+        if (!started.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            started.destroyForcibly()
+            return null
+        }
+        reader.join(1000)
+        return output.toString()
+    }
 }
+
+
+
+
+
+
+
+
+
 
 
 
