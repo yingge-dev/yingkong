@@ -4,6 +4,12 @@ import android.content.Context
 import java.io.File
 import org.json.JSONObject
 
+data class ModuleThread(
+    val tid: Int,
+    val name: String,
+    val cpu: Float
+)
+
 data class ModuleState(
     val root: Boolean = false,
     val installed: Boolean = false,
@@ -13,7 +19,8 @@ data class ModuleState(
     val cpu: Float? = null,
     val temp: Float? = null,
     val battery: Float? = null,
-    val power: Float? = null
+    val power: Float? = null,
+    val threads: List<ModuleThread> = emptyList()
 )
 
 object ModuleManager {
@@ -29,7 +36,6 @@ object ModuleManager {
             if [ -f $UPDATE_PATH/module.prop ]; then echo STATE=PENDING; fi
             if [ -f /data/adb/yingkong/pid ]; then if kill -0 $(cat /data/adb/yingkong/pid) 2>/dev/null; then echo STATE=RUNNING; fi; fi
             if [ -f $UPDATE_PATH/module.prop ]; then echo VERSION=$(grep '^version=' $UPDATE_PATH/module.prop | cut -d= -f2); elif [ -f $PATH/module.prop ]; then echo VERSION=$(grep '^version=' $PATH/module.prop | cut -d= -f2); fi
-            if [ -f /data/adb/yingkong/status ]; then echo STATUS=$(cat /data/adb/yingkong/status); fi
             """.trimIndent(),
             10
         ) ?: return ModuleState()
@@ -38,13 +44,27 @@ object ModuleManager {
         var temp: Float? = null
         var battery: Float? = null
         var power: Float? = null
-        lines.firstOrNull { it.startsWith("STATUS=") }?.let { line ->
+        val threads = mutableListOf<ModuleThread>()
+        val statusRaw = RootShell.runRoot("cat /data/adb/yingkong/status", 5)?.trim()
+        statusRaw?.takeIf { it.startsWith("{") }?.let { raw ->
             try {
-                val json = JSONObject(line.substringAfter("STATUS="))
+                val json = JSONObject(raw)
                 cpu = json.optDouble("cpu", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
                 temp = json.optDouble("temp", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
                 battery = json.optDouble("battery", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
                 power = json.optDouble("power", Double.NaN).takeIf { !it.isNaN() }?.toFloat()
+                json.optJSONArray("threads")?.let { array ->
+                    for (index in 0 until array.length()) {
+                        val thread = array.optJSONObject(index) ?: continue
+                        threads.add(
+                            ModuleThread(
+                                tid = thread.optInt("tid"),
+                                name = thread.optString("name"),
+                                cpu = thread.optDouble("cpu", 0.0).toFloat()
+                            )
+                        )
+                    }
+                }
             } catch (_: Exception) {
             }
         }
@@ -57,7 +77,8 @@ object ModuleManager {
             cpu = cpu,
             temp = temp,
             battery = battery,
-            power = power
+            power = power,
+            threads = threads
         )
     }
 
@@ -95,4 +116,5 @@ object ModuleManager {
         return RootShell.runRoot(cmd, 20) ?: "root 无响应"
     }
 }
+
 

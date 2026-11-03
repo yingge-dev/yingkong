@@ -118,6 +118,7 @@ class RecorderService : Service() {
                     if (pkg != null && isTargetable(pkg)) {
                         if (RecorderStore.targetPkg.value == null) {
                             RecorderStore.setTarget(pkg, resolveLabel(pkg))
+                            RootShell.runRoot("echo $pkg > /data/adb/yingkong/target")
                         }
                         if (pkg == RecorderStore.targetPkg.value) {
                             RecorderStore.add(snapshot)
@@ -404,4 +405,5 @@ class RecorderService : Service() {
         super.onDestroy()
     }
 }
+
 

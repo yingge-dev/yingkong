@@ -1,4 +1,4 @@
-﻿package com.yingkong.app
+package com.yingkong.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -121,6 +121,15 @@ fun SettingsScreen(deviceName: String) {
                     fontSize = 8.5.sp,
                     color = Muted
                 )
+                val top = state.threads.firstOrNull()
+                if (top != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "最忙线程：${top.name} %.0f%%".format(top.cpu),
+                        fontSize = 8.sp,
+                        color = Tertiary
+                    )
+                }
             }
             Spacer(Modifier.height(7.dp))
             Text(

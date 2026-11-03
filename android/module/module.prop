@@ -1,6 +1,6 @@
 id=yingkong
 name=颖控采集模块
-version=0.3.0
-versionCode=3
+version=0.4.0
+versionCode=4
 author=颖控
 description=可选采集守护。不修改系统分区，可随时卸载。

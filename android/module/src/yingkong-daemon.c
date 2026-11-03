@@ -17,17 +17,35 @@
 #define STATUS_PATH DATA_DIR "/status"
 #define SAMPLE_PATH DATA_DIR "/samples.jsonl"
 #define PID_PATH DATA_DIR "/pid"
+#define TARGET_PATH DATA_DIR "/target"
 #define MAX_CORES 16
 #define MAX_FREQ 16
 #define MAX_THERMAL 64
-#define VERSION "0.3.0"
+#define MAX_THREADS 512
+#define VERSION "0.4.0"
 
 typedef struct {
     unsigned long long total;
     unsigned long long busy;
 } CpuTimes;
 
+typedef struct {
+    int tid;
+    unsigned long long ticks;
+} PrevThread;
+
+typedef struct {
+    int tid;
+    char name[40];
+    unsigned long long ticks;
+    double cpu;
+    int core;
+} ThreadNow;
+
 static volatile sig_atomic_t running = 1;
+static PrevThread previous_threads[MAX_THREADS];
+static int previous_thread_count = 0;
+static pid_t previous_thread_pid = -1;
 
 static void on_signal(int sig) {
     (void)sig;
@@ -218,6 +236,153 @@ static void read_gpu(double *busy, double *mhz) {
     *mhz = hz > 0 ? hz / 1000000.0 : 0;
 }
 
+static pid_t find_target_pid(const char *target) {
+    if (!target || target[0] == 0) return -1;
+    DIR *dir = opendir("/proc");
+    if (!dir) return -1;
+    struct dirent *entry;
+    pid_t exact = -1;
+    pid_t prefix = -1;
+    size_t target_length = strlen(target);
+    while ((entry = readdir(dir)) != NULL) {
+        if (!isdigit((unsigned char)entry->d_name[0])) continue;
+        char path[64];
+        snprintf(path, sizeof(path), "/proc/%s/cmdline", entry->d_name);
+        char cmdline[256];
+        if (read_text(path, cmdline, sizeof(cmdline)) <= 0) continue;
+        pid_t pid = (pid_t)atoi(entry->d_name);
+        if (strcmp(cmdline, target) == 0) {
+            if (exact < 0 || pid < exact) exact = pid;
+        } else if (strncmp(cmdline, target, target_length) == 0 && cmdline[target_length] == ':') {
+            if (prefix < 0 || pid < prefix) prefix = pid;
+        }
+    }
+    closedir(dir);
+    return exact > 0 ? exact : prefix;
+}
+
+static int parse_thread_stat(const char *stat_path, int *tid, char *name, size_t name_size,
+                             unsigned long long *ticks, int *core) {
+    char buffer[1024];
+    if (read_text(stat_path, buffer, sizeof(buffer)) <= 0) return -1;
+    char *open_paren = strchr(buffer, '(');
+    char *close_paren = strrchr(buffer, ')');
+    if (!open_paren || !close_paren || close_paren <= open_paren) return -1;
+
+    size_t name_length = (size_t)(close_paren - open_paren - 1);
+    if (name_length >= name_size) name_length = name_size - 1;
+    memcpy(name, open_paren + 1, name_length);
+    name[name_length] = 0;
+
+    *tid = atoi(buffer);
+    *ticks = 0;
+    *core = -1;
+
+    char *rest = close_paren + 1;
+    while (*rest == ' ') rest++;
+    char *save = NULL;
+    char *token = strtok_r(rest, " ", &save);
+    int index = 0;
+    while (token != NULL) {
+        if (index == 11) {
+            *ticks = strtoull(token, NULL, 10);
+        } else if (index == 12) {
+            *ticks += strtoull(token, NULL, 10);
+        } else if (index == 36) {
+            *core = atoi(token);
+        }
+        index++;
+        token = strtok_r(NULL, " ", &save);
+    }
+    return 0;
+}
+
+static unsigned long long previous_ticks_for(int tid) {
+    for (int i = 0; i < previous_thread_count; i++) {
+        if (previous_threads[i].tid == tid) return previous_threads[i].ticks;
+    }
+    return 0;
+}
+
+static void collect_threads(pid_t pid, char *out, size_t out_size, double dt) {
+    if (pid <= 0) {
+        snprintf(out, out_size, "[]");
+        return;
+    }
+    char task_path[64];
+    snprintf(task_path, sizeof(task_path), "/proc/%d/task", pid);
+    DIR *dir = opendir(task_path);
+    if (!dir) {
+        snprintf(out, out_size, "[]");
+        return;
+    }
+
+    ThreadNow threads[MAX_THREADS];
+    int count = 0;
+    struct dirent *entry;
+    long hz = sysconf(_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    while ((entry = readdir(dir)) != NULL && count < MAX_THREADS) {
+        if (!isdigit((unsigned char)entry->d_name[0])) continue;
+        int tid = atoi(entry->d_name);
+        char path[128];
+        snprintf(path, sizeof(path), "%s/%s/stat", task_path, entry->d_name);
+        char name[40];
+        unsigned long long ticks = 0;
+        int core = -1;
+        if (parse_thread_stat(path, &tid, name, sizeof(name), &ticks, &core) < 0) continue;
+        unsigned long long previous = previous_ticks_for(tid);
+        double cpu = 0;
+        if (previous > 0 && ticks >= previous && dt > 0) {
+            cpu = (double)(ticks - previous) * 100.0 / (hz * dt);
+            if (cpu < 0) cpu = 0;
+            if (cpu > 100) cpu = 100;
+        }
+        threads[count].tid = tid;
+        snprintf(threads[count].name, sizeof(threads[count].name), "%s", name);
+        threads[count].ticks = ticks;
+        threads[count].cpu = cpu;
+        threads[count].core = core;
+        count++;
+    }
+    closedir(dir);
+
+    for (int i = 0; i < count; i++) {
+        for (int j = i + 1; j < count; j++) {
+            if (threads[j].cpu > threads[i].cpu) {
+                ThreadNow temp = threads[i];
+                threads[i] = threads[j];
+                threads[j] = temp;
+            }
+        }
+    }
+
+
+    size_t offset = 0;
+    offset += snprintf(out + offset, out_size - offset, "[");
+    int emitted = 0;
+    for (int i = 0; i < count && emitted < 6; i++) {
+        if (threads[i].cpu < 0.5) continue;
+        char safe_name[40];
+        snprintf(safe_name, sizeof(safe_name), "%s", threads[i].name);
+        for (char *p = safe_name; *p; p++) {
+            if (*p == '"' || *p == '\\') *p = '_';
+        }
+        offset += snprintf(out + offset, out_size - offset,
+            "%s{\"tid\":%d,\"name\":\"%s\",\"cpu\":%.1f,\"core\":%d}",
+            emitted ? "," : "", threads[i].tid, safe_name, threads[i].cpu, threads[i].core);
+        emitted++;
+    }
+    snprintf(out + offset, out_size - offset, "]");
+
+    previous_thread_count = count < MAX_THREADS ? count : MAX_THREADS;
+    for (int i = 0; i < previous_thread_count; i++) {
+        previous_threads[i].tid = threads[i].tid;
+        previous_threads[i].ticks = threads[i].ticks;
+    }
+    previous_thread_pid = pid;
+}
+
 static void write_status(const char *json) {
     char tmp[64];
     snprintf(tmp, sizeof(tmp), "%s.tmp", STATUS_PATH);
@@ -269,6 +434,9 @@ int main(void) {
     read_cpu(previous, &core_count);
     sleep(1);
 
+    struct timespec last_mono;
+    clock_gettime(CLOCK_MONOTONIC, &last_mono);
+
     while (running) {
         int now_cores = 0;
         read_cpu(current, &now_cores);
@@ -287,7 +455,6 @@ int main(void) {
             unsigned long long busy_delta = current[i + 1].busy - previous[i + 1].busy;
             cores[i] = total_delta > 0 ? busy_delta * 100.0 / total_delta : 0;
         }
-
         for (int i = 0; i < MAX_CORES; i++) previous[i] = current[i];
 
         double mem_total = 0, mem_avail = 0;
@@ -301,15 +468,30 @@ int main(void) {
         int max_mhz = read_cpu_freqs(freqs, &freq_count);
         double gpu_busy = 0, gpu_mhz = 0;
         read_gpu(&gpu_busy, &gpu_mhz);
-
         char load[128] = "";
         read_text("/proc/loadavg", load, sizeof(load));
+
+        struct timespec now_mono;
+        clock_gettime(CLOCK_MONOTONIC, &now_mono);
+        double dt = (now_mono.tv_sec - last_mono.tv_sec) +
+            (now_mono.tv_nsec - last_mono.tv_nsec) / 1000000000.0;
+        last_mono = now_mono;
+
+        char target[256] = "";
+        read_text(TARGET_PATH, target, sizeof(target));
+        pid_t target_pid = find_target_pid(target);
+        if (target_pid != previous_thread_pid) {
+            previous_thread_count = 0;
+            previous_thread_pid = target_pid;
+        }
+        char thread_json[2048];
+        collect_threads(target_pid, thread_json, sizeof(thread_json), dt > 0.1 ? dt : 1.0);
 
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         long long millis = (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 
-        char json[4096];
+        char json[8192];
         int offset = snprintf(json, sizeof(json),
             "{\"ts\":%lld,\"pid\":%d,\"version\":\"%s\",\"cpu\":%.1f,\"cores\":[",
             millis, getpid(), VERSION, cpu_total);
@@ -326,8 +508,8 @@ int main(void) {
             offset += snprintf(json + offset, sizeof(json) - offset, "%s%d", i ? "," : "", freqs[i]);
         }
         snprintf(json + offset, sizeof(json) - offset,
-            "],\"gpu\":%.0f,\"gpu_mhz\":%.0f,\"load\":\"%s\"}",
-            gpu_busy, gpu_mhz, load);
+            "],\"gpu\":%.0f,\"gpu_mhz\":%.0f,\"load\":\"%s\",\"target_pid\":%d,\"threads\":%s}",
+            gpu_busy, gpu_mhz, load, target_pid, thread_json);
 
         write_status(json);
         append_sample(json);
