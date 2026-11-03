@@ -1,6 +1,7 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 data class ProcRow(val name: String, val cpu: Float, val memMb: Float)
@@ -178,18 +179,20 @@ object RootShell {
         var jankPct = 0f
         var p99Ms = 0f
         if (fgPackage != null) {
-            val result = parseFps(fgPackage)
-            if (result != null && result.first >= 1f) {
-                fps = result.first
-                jankPct = result.second
-                p99Ms = result.third
-            }
-            if (fps < 1f) {
+            if (fgPackage != "com.yingkong.app") {
                 val surface = surfaceFps(fgPackage)
                 if (surface != null) {
                     fps = surface
                     jankPct = 0f
                     p99Ms = 0f
+                }
+            }
+            if (fps < 1f) {
+                val result = parseFps(fgPackage)
+                if (result != null && result.first >= 1f) {
+                    fps = result.first
+                    jankPct = result.second
+                    p99Ms = result.third
                 }
             }
         }
@@ -244,17 +247,38 @@ object RootShell {
         sfPrevCounts = counts
         sfPrevTime = now
         if (prev.isEmpty() || dt < 0.3f) return null
-        var best = 0L
+        var bestSurface = 0L
+        var bestPkg = 0L
+        var bestVideo = 0L
         counts.forEach { (key, value) ->
             val name = key.substringAfter('|')
             if (name.startsWith("VRI-") || name.contains("Background for") ||
                 name.contains("Bounds for") || name.contains("ActivityRecord") ||
-                name.contains("InputSink") || name.contains("com.android.systemui")
+                name.contains("InputSink") || name.contains("com.android.systemui") ||
+                name.contains("StatusBar") || name.contains("NavigationBar") ||
+                name.contains("ScreenDecor") || name.contains("Wallpaper") ||
+                name.contains("Launcher") || name.contains("MultiTasking") ||
+                name.contains("NotificationShade") || name.contains("VolumeDialog") ||
+                name.contains("InputMethod")
             ) {
                 return@forEach
             }
             val delta = value - (prev[key] ?: 0L)
-            if (delta > best) best = delta
+            if (delta <= 0L) return@forEach
+            if (name.contains(pkg)) {
+                if (delta > bestPkg) bestPkg = delta
+                if (name.contains("SurfaceView") && delta > bestSurface) bestSurface = delta
+            }
+            if ((name.contains("ttPlayer") || name.contains("Video") ||
+                    name.contains("MediaCodec")) && delta > bestVideo
+            ) {
+                bestVideo = delta
+            }
+        }
+        val best = when {
+            bestSurface > 0L -> bestSurface
+            bestPkg > 0L -> bestPkg
+            else -> bestVideo
         }
         if (best <= 0L) return null
         val fps = best / dt
@@ -318,19 +342,48 @@ object RootShell {
         Regex("\\d+").find(line)?.value?.toLongOrNull()
 
     private fun execCmd(cmd: String): String? {
+        var process: Process? = null
         return try {
             val su = if (File("/system/bin/su").exists()) "/system/bin/su" else "su"
             val pb = ProcessBuilder(su, "-c", cmd)
             pb.redirectErrorStream(true)
-            val process = pb.start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            process.waitFor()
-            output
+            val started = pb.start()
+            process = started
+            val output = StringBuilder()
+            val reader = Thread {
+                try {
+                    started.inputStream.bufferedReader().use { readerStream ->
+                        val buffer = CharArray(8192)
+                        while (true) {
+                            val count = readerStream.read(buffer)
+                            if (count < 0) break
+                            output.append(buffer, 0, count)
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }.apply {
+                isDaemon = true
+                start()
+            }
+            if (!started.waitFor(8, TimeUnit.SECONDS)) {
+                started.destroyForcibly()
+                return null
+            }
+            reader.join(1000)
+            output.toString()
         } catch (e: Exception) {
+            try {
+                process?.destroyForcibly()
+            } catch (_: Exception) {
+            }
             null
         }
     }
 }
+
+
+
 
 
 

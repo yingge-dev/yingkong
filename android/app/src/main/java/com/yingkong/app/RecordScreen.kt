@@ -1,8 +1,10 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -26,6 +28,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +94,47 @@ fun RecordScreen(deviceName: String) {
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
+    var overlayOn by remember {
+        mutableStateOf(
+            context.getSharedPreferences(RecorderService.PREFS, android.content.Context.MODE_PRIVATE)
+                .getBoolean(RecorderService.KEY_OVERLAY, false)
+        )
+    }
+    val overlayPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val granted = Settings.canDrawOverlays(context)
+        overlayOn = granted
+        if (granted) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+            )
+        }
+    }
+    val setOverlay: (Boolean) -> Unit = { enabled ->
+        if (enabled) {
+            if (!Settings.canDrawOverlays(context)) {
+                overlayPermission.launch(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            } else {
+                overlayOn = true
+                ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_SHOW_OVERLAY)
+                )
+            }
+        } else {
+            overlayOn = false
+            context.startService(
+                Intent(context, RecorderService::class.java).setAction(RecorderService.ACTION_HIDE_OVERLAY)
+            )
+        }
+    }
 
     val startRecording = {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -195,6 +240,43 @@ fun RecordScreen(deviceName: String) {
                     fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.9f))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("悬浮按钮", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                Text(
+                    "在游戏上显示；点按开始/结束，可拖动",
+                    fontSize = 8.sp,
+                    color = Tertiary
+                )
+            }
+            Switch(
+                checked = overlayOn,
+                onCheckedChange = setOverlay,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Orange,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color(0x33606067)
+                )
+            )
+        }
+        if (overlayOn) {
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "系统窗口，不注入游戏；部分游戏可能检测到悬浮窗。",
+                fontSize = 7.5.sp,
+                color = Tertiary
+            )
         }
 
         if (recording) {
@@ -573,5 +655,7 @@ private fun formatDuration(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(total / 60, total % 60)
 }
+
+
 
 
