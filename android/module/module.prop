@@ -1,0 +1,6 @@
+id=yingkong
+name=颖控采集模块
+version=0.1.0
+versionCode=1
+author=颖控
+description=可选采集守护脚本。不修改系统分区，可随时卸载。

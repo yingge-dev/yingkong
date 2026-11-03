@@ -341,7 +341,9 @@ object RootShell {
     private fun firstLong(line: String): Long? =
         Regex("\\d+").find(line)?.value?.toLongOrNull()
 
-    private fun execCmd(cmd: String): String? {
+    fun runRoot(cmd: String, timeoutSeconds: Long = 8): String? = execCmd(cmd, timeoutSeconds)
+
+    private fun execCmd(cmd: String, timeoutSeconds: Long = 8): String? {
         var process: Process? = null
         return try {
             val su = if (File("/system/bin/su").exists()) "/system/bin/su" else "su"
@@ -366,7 +368,7 @@ object RootShell {
                 isDaemon = true
                 start()
             }
-            if (!started.waitFor(8, TimeUnit.SECONDS)) {
+            if (!started.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                 started.destroyForcibly()
                 return null
             }
@@ -381,6 +383,7 @@ object RootShell {
         }
     }
 }
+
 
 
 
