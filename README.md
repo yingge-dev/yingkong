@@ -42,7 +42,7 @@ Scene 的功能拆解、颖控对应实现和权限要求见 [FEATURES.md](FEATU
 - **场次详情**：逐秒 FPS 曲线、Jank 标记、温度/功耗曲线、前 3 秒预热区间；最多保存 1200 个样本点
 - **悬浮按钮**：系统级悬浮窗，可拖动；点按开始/结束记录，记录中显示真实 FPS；退回桌面/游戏后仍在，通知栏可隐藏
 - 悬浮窗只是系统窗口，不注入、不读内存、不模拟点击；部分游戏可能检测到悬浮窗
-- **可选采集模块**：设置页可安装/卸载 Magisk / KernelSU 模块；开机启动轻量守护脚本，状态写入 `/data/adb/yingkong`；不改系统分区，卸载即删除
+- **可选采集模块**：设置页可安装/卸载 Magisk / KernelSU 模块；ARM64 原生 C 守护进程开机自启，每秒采集 CPU/核心/内存/温度/电池/频率/GPU，写入 `/data/adb/yingkong`；其他架构回退 shell；不改系统分区，卸载即删除
 - 模块安装后建议重启；如果异常，可在 KSU/Magisk 管理器或安全模式下禁用模块
 - **FPS 双通道**：普通 App 用 gfxinfo 帧时间；游戏/视频走 SurfaceView 等图层时，用 SurfaceFlinger 图层 frame 计数差值回退，避免只有 0 或 165Hz 合成率
 - 已知限制：SurfaceFlinger 回退路径暂时没有 Jank/帧时，需要后续补 FrameTimeline
@@ -99,6 +99,7 @@ assets/         字体、图标
 ```
 
 License: TBD
+
 
 
 

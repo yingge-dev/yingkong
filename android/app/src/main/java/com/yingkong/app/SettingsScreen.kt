@@ -1,4 +1,4 @@
-package com.yingkong.app
+﻿package com.yingkong.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -114,9 +114,17 @@ fun SettingsScreen(deviceName: String) {
             }
             Spacer(Modifier.height(5.dp))
             Text(statusText, fontSize = 10.sp, color = statusColor, fontWeight = FontWeight.Medium)
+            if (state.running && state.cpu != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "采集：CPU %.0f%% · %.1f°C · 电量 %.0f%%".format(state.cpu, state.temp ?: 0f, state.battery ?: 0f),
+                    fontSize = 8.5.sp,
+                    color = Muted
+                )
+            }
             Spacer(Modifier.height(7.dp))
             Text(
-                "可选模块：开机启动采集守护脚本，写入 /data/adb/yingkong 状态文件；不修改系统分区，可随时卸载。",
+                "可选模块：开机启动原生采集守护进程，每秒写入 /data/adb/yingkong 状态与样本；不修改系统分区，可随时卸载。",
                 fontSize = 8.5.sp,
                 color = Muted,
                 lineHeight = 13.sp
@@ -181,14 +189,14 @@ fun SettingsScreen(deviceName: String) {
             Text("模块现在做什么", fontSize = 10.5.sp, color = Muted)
             Spacer(Modifier.height(6.dp))
             Text(
-                "目前只启动一个轻量守护脚本，每 5 秒写一次状态（时间、电量、温度、负载），用于验证安装、开机启动和卸载回滚。",
+                "目前运行原生守护进程（arm64），每秒采集 CPU/核心负载、内存、温度、电池、频率、GPU，并写入状态与样本文件。",
                 fontSize = 8.5.sp,
                 color = Tertiary,
                 lineHeight = 13.sp
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "native daemon、FrameTimeline、调频/线程绑核会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
+                "FrameTimeline、线程级数据、调频/线程绑核会在下一阶段接入；不会拿未验证的 sysfs 直接写。",
                 fontSize = 8.5.sp,
                 color = Tertiary,
                 lineHeight = 13.sp
@@ -259,3 +267,5 @@ fun SettingsScreen(deviceName: String) {
         )
     }
 }
+
+
